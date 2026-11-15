@@ -28,7 +28,10 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis", "msi"],
+    "targets": [
+      "nsis",
+      "msi"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -37,10 +40,24 @@
       "icons/icon.ico"
     ],
     "windows": {
-      "webviewInstallMode": { "type": "embedBootstrapper" },
+      "webviewInstallMode": {
+        "type": "embedBootstrapper"
+      },
       "nsis": {
         "installMode": "currentUser",
-        "languages": ["Bulgarian", "English"]
+        "languages": [
+          "Bulgarian",
+          "English"
+        ]
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDAyQTVDQ0IwQzIxQjQzMzQKUldRMFF4dkNzTXlsQWtEc28wUkR5MGo3SjVBWXJwcEoySHdkd3VFNE1qV2p5bnZveisyMXVVRVcK",
+      "endpoints": [],
+      "windows": {
+        "installMode": "passive"
       }
     }
   }

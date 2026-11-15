@@ -9,6 +9,7 @@ export interface AppConfig {
   backupDaily: boolean;
   backupKeep: number;
   lastBackup: string | null;
+  noAutoUpdate: boolean;
 }
 
 export interface Loaded<T> {
@@ -407,6 +408,7 @@ export const api = {
   setDataDir: (path: string) => invoke<AppConfig>("set_data_dir", { path }),
   setBackup: (dir: string | null, daily: boolean, keep: number) => invoke<AppConfig>("set_backup", { dir, daily, keep }),
   backupNow: () => invoke<string>("backup_now"),
+  setAutoUpdate: (on: boolean) => invoke<AppConfig>("set_auto_update", { on }),
   openPath: (path: string) => invoke<void>("open_path", { path }),
   revealPath: (path: string) => invoke<void>("reveal_path", { path }),
   recordDir: (kind: "client" | "car" | "order" | "root", id = "") => invoke<string>("record_dir", { kind, id }),

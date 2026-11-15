@@ -1,11 +1,22 @@
 name: Windows installer
 
-# Builds the .exe (NSIS) and .msi installers on a Windows runner.
-# Run it from the Actions tab, or push a tag like v0.1.0.
+# Push a tag like v0.2.0 (see scripts/release.mjs) to build the installer,
+# sign the update and create a DRAFT GitHub release with latest.json.
+# Installed apps see the update only after the draft is published.
+#
+# Running it by hand from the Actions tab builds the installers without
+# update signing and uploads them as a workflow artifact.
+#
+# Needed repository secrets (Settings → Secrets and variables → Actions):
+#   TAURI_SIGNING_PRIVATE_KEY           contents of ~/.tauri/avtoservis-updater.key
+#   TAURI_SIGNING_PRIVATE_KEY_PASSWORD  contents of ~/.tauri/avtoservis-updater.password
 on:
   workflow_dispatch:
   push:
     tags: ["v*"]
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -33,10 +44,44 @@ jobs:
           pnpm test
           cargo test --manifest-path src-tauri/Cargo.toml
 
+      # ---- release (tag push): signed update + draft release ----
+
+      - name: Release settings (update address and signed update files)
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          cat > src-tauri/tauri.release.conf.json <<EOF
+          {
+            "bundle": { "createUpdaterArtifacts": true },
+            "plugins": { "updater": { "endpoints": ["https://github.com/${{ github.repository }}/releases/latest/download/latest.json"] } }
+          }
+          EOF
+
+      - name: Build, sign and create a draft release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: Автосервиз ${{ github.ref_name }}
+          releaseBody: |
+            Какво ново в тази версия:
+            -
+          releaseDraft: true
+          includeUpdaterJson: true
+          args: --config ${{ github.workspace }}/src-tauri/tauri.release.conf.json
+
+      # ---- manual run: plain installers as a workflow artifact ----
+
       - name: Build installers
+        if: "!startsWith(github.ref, 'refs/tags/v')"
         run: pnpm tauri build
 
       - uses: actions/upload-artifact@v4
+        if: "!startsWith(github.ref, 'refs/tags/v')"
         with:
           name: avtoservis-windows
           path: |

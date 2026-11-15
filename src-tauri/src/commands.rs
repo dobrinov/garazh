@@ -95,6 +95,14 @@ pub fn set_backup(state: State<AppState>, dir: Option<String>, daily: bool, keep
 }
 
 #[tauri::command]
+pub fn set_auto_update(state: State<AppState>, on: bool) -> R<AppConfig> {
+    let mut cfg = state.config.lock().unwrap();
+    cfg.noAutoUpdate = !on;
+    cfg.save(&state.config_dir)?;
+    Ok(cfg.clone())
+}
+
+#[tauri::command]
 pub fn backup_now(state: State<AppState>) -> R<String> {
     run_backup(&state)
 }

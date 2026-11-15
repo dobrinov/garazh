@@ -4,6 +4,7 @@ import { api, AppConfig, errorMessage } from "./api";
 import { Layout } from "./components/Layout";
 import { BrandProvider } from "./components/brand";
 import { FeaturesProvider } from "./components/features";
+import { UpdatesProvider } from "./components/updates";
 import { ToastProvider } from "./components/ui";
 import { CarEdit } from "./pages/CarEdit";
 import { CarPage } from "./pages/CarPage";
@@ -42,6 +43,7 @@ export function App() {
 
   return (
     <ToastProvider>
+      <UpdatesProvider auto={!config.noAutoUpdate} backupConfigured={!!config.backupDir}>
       <BrandProvider enabled={!!config.dataDir}>
       {!config.dataDir ? (
         <Setup onDone={setConfig} />
@@ -75,6 +77,7 @@ export function App() {
         </FeaturesProvider>
       )}
       </BrandProvider>
+      </UpdatesProvider>
     </ToastProvider>
   );
 }

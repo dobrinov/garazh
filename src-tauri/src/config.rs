@@ -14,6 +14,8 @@ pub struct AppConfig {
     pub backupDaily: bool,
     pub backupKeep: u32,
     pub lastBackup: Option<String>,
+    /// Automatic update checks are on unless this is set.
+    pub noAutoUpdate: bool,
 }
 
 impl AppConfig {

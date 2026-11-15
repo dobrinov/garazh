@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { api, AppConfig, errorMessage, Loaded, Shop } from "../api";
 import { useBrand } from "../components/brand";
 import { LogoPicker } from "../components/LogoPicker";
+import { useUpdates } from "../components/updates";
 import { Icon, Loading, TextField, useToast } from "../components/ui";
 import { FEATURES, FeatureKey, resolveFeatures, toggle } from "../lib/features";
 
@@ -17,6 +18,7 @@ export function Settings({
 }) {
   const toast = useToast();
   const brand = useBrand();
+  const updates = useUpdates();
   const [shop, setShop] = useState<Loaded<Shop> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [backupDir, setBackupDir] = useState(config.backupDir ?? "");
@@ -191,6 +193,44 @@ export function Settings({
         <div className="note info">
           Всичко е в обикновени папки и текстови файлове. Можете да ги разглеждате и редактирате с Notepad и да копирате
           документи директно в папките – програмата ги вижда, когато прозорецът ѝ отново стане активен.
+        </div>
+      </section>
+
+      <section className="card pad" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <h2>Обновяване</h2>
+        <div className="row" style={{ gap: 16, flexWrap: "wrap" }}>
+          <span>Версия <strong className="mono">{updates.current || "—"}</strong></span>
+          <button className="btn" onClick={updates.checkNow} disabled={updates.status === "checking" || updates.status === "downloading"}>
+            {updates.status === "checking" ? "Проверка…" : "Провери за нова версия"}
+          </button>
+          {updates.status === "available" && updates.update && (
+            <button className="btn primary" onClick={updates.install}>Обнови до {updates.update.version}</button>
+          )}
+          <span className="muted small">
+            {updates.status === "none" && "Използвате последната версия."}
+            {updates.status === "unconfigured" && "Тази версия е компилирана локално и не проверява за обновления. Обновяването работи в инсталираната версия."}
+            {updates.status === "error" && `Проверката не успя: ${updates.error}`}
+            {updates.status === "downloading" && "Изтегляне…"}
+          </span>
+        </div>
+        {updates.status === "available" && updates.update?.body && <div className="note info" style={{ whiteSpace: "pre-wrap" }}>{updates.update.body}</div>}
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={!config.noAutoUpdate}
+            onChange={async (e) => {
+              try {
+                onConfig(await api.setAutoUpdate(e.target.checked));
+              } catch (err) {
+                toast(errorMessage(err), true);
+              }
+            }}
+          />
+          Проверявай автоматично (при стартиране и на всеки 6 часа)
+        </label>
+        <div className="muted small">
+          Обновяването сменя само програмата – папката с данни не се променя. Ако е избрана папка за архиви, преди обновяване
+          се прави резервно копие. Новата версия се проверява с подпис, преди да бъде инсталирана.
         </div>
       </section>
 

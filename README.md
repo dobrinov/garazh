@@ -48,8 +48,8 @@ Version 1.0 adds:
   `{КОД_ДВИГАТЕЛ}` and other placeholders filled from the car
 - **Fault codes** read from the text layer of diagnostic PDFs (P/B/C/U + 4)
 
-Not done yet from the plan's version 1.0: code signing and automatic updates
-(both need a certificate and signing keys first).
+Automatic updates: see below. Not done yet from the plan's version 1.0: a
+Windows code-signing certificate for the installer.
 
 ## Data folder
 
@@ -112,16 +112,46 @@ cargo run --example sample_data -- "/path/to/empty/folder"
 
 Then pick that folder on the app's first start (or in Settings).
 
-## Windows installer
+## Windows installer and updates
 
-Installers are built on Windows. Either run `pnpm tauri build` on a Windows
-machine, or use the **Windows installer** GitHub Actions workflow
-(`.github/workflows/windows.yml`), which uploads the `.exe` and `.msi`.
-The installer installs per user (no admin rights) and adds Microsoft's
-WebView2 runtime on Windows 10 if it is missing.
+Installers are built on Windows: run `pnpm tauri build` on a Windows machine,
+or use the **Windows installer** GitHub Actions workflow
+(`.github/workflows/windows.yml`). The installer installs per user (no admin
+rights) and adds Microsoft's WebView2 runtime on Windows 10 if it is missing.
 
-Before giving the installer to anyone, sign it with a code-signing
-certificate so Windows SmartScreen does not block it.
+### Automatic updates
+
+The installed app checks GitHub Releases for a newer version at start and
+every 6 hours (switchable in Settings → Обновяване), shows a notice in the side
+menu, makes a backup if a backup folder is set, downloads the update, checks
+its signature, installs it and restarts. The data folder is never touched.
+
+One-time setup:
+
+1. Push the project to a GitHub repository.
+2. Add two repository secrets (Settings → Secrets and variables → Actions):
+   - `TAURI_SIGNING_PRIVATE_KEY`: the contents of `~/.tauri/avtoservis-updater.key`
+   - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`: the contents of `~/.tauri/avtoservis-updater.password`
+3. **Back up those two files.** Installed copies only accept updates signed
+   with this key; if it is lost, every installation has to be reinstalled by
+   hand with a new one. The public key is in `src-tauri/tauri.conf.json`.
+
+Each release:
+
+```sh
+pnpm release 0.2.0           # sets the version, commits, tags v0.2.0
+git push && git push --tags  # the workflow builds a signed draft release
+```
+
+Then open the draft on GitHub, write what is new (the app shows it in the
+update notice) and publish it. Installed apps offer the update only after
+the release is published. The update address is added at build time from
+the repository name, so copies built locally (`cargo run`, `pnpm tauri
+build`) do not check for updates.
+
+Before giving the installer to anyone, also sign it with a Windows
+code-signing certificate so SmartScreen does not block it. That is separate
+from the update key above.
 
 ## Code map
 
