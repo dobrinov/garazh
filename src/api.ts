@@ -27,6 +27,7 @@ export interface Shop {
   laborRate: Money;
   vatPercent: number;
   vatRegistered: boolean;
+  logo: string;
   counters: { client: number; workOrder: number; quote: number; report: number };
   features: Record<string, boolean>;
   [extra: string]: unknown;
@@ -445,6 +446,11 @@ export const api = {
   saveQuote: (input: SaveInput<Quote>) => invoke<Loaded<Quote>>("save_quote", { input }),
   acceptQuote: (id: string) => invoke<Loaded<WorkOrder>>("accept_quote", { id }),
   scanFaultCodes: (path: string) => invoke<FaultScan>("scan_fault_codes", { path }),
+
+  getLogo: () => invoke<string | null>("get_logo"),
+  setLogoFile: (path: string) => invoke<Loaded<Shop>>("set_logo_file", { path }),
+  setLogoSvg: (svg: string) => invoke<Loaded<Shop>>("set_logo_svg", { svg }),
+  clearLogo: () => invoke<Loaded<Shop>>("clear_logo"),
 };
 
 export function emptyQuote(carId: string, kind: QuoteKind): Quote {

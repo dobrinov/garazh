@@ -19,7 +19,7 @@ export interface FeatureDef {
 export const FEATURES: FeatureDef[] = [
   { key: "schedule", label: "График за поддръжка", description: "Интервали по двигател и кутия, кога е правено и кога предстои, според пробега на колата.", default: true },
   { key: "vin", label: "Разчитане на VIN", description: "Попълва марка, модел и година от VIN, без интернет. Всяко поле може да се промени ръчно.", default: true },
-  { key: "vinOnline", label: "Онлайн проверка на VIN", description: "Допълва данни от безплатната услуга NHTSA vPIC (САЩ). За европейски коли дава малко данни. Изпраща се само VIN.", default: false, requires: ["vin"], online: true },
+  { key: "vinOnline", label: "Онлайн проверка на VIN", description: "Допълва данни от безплатната услуга NHTSA vPIC (САЩ). За европейски коли дава малко данни. Изпраща се само VIN, при натискане на „Разчети VIN“.", default: true, requires: ["vin"], online: true },
   { key: "quotes", label: "Оферти и доклади", description: "Оферти за ремонт, доклади за извършен ремонт и за диагностика – печат и PDF.", default: true },
   { key: "links", label: "Полезни връзки", description: "Връзки към каталози и техническа информация според марката, с данните на колата.", default: true },
   { key: "faultCodes", label: "Кодове за грешки от PDF", description: "Чете кодовете (P0401, U0100…) от PDF отчетите на диагностичния уред.", default: true },

@@ -56,7 +56,7 @@ fn not_found(id: &str) -> ApiError {
 /// Feature switches kept in сервиз.md. A switch that is not written down
 /// takes its default; the same defaults are in src/lib/features.ts.
 pub fn feature_on(shop: &Shop, key: &str) -> bool {
-    shop.features.get(key).copied().unwrap_or(!matches!(key, "vinOnline" | "stock"))
+    shop.features.get(key).copied().unwrap_or(key != "stock")
 }
 
 fn features(st: &Store) -> Shop {
@@ -542,4 +542,29 @@ pub async fn scan_fault_codes(state: State<'_, AppState>, path: String) -> R<Fau
     tauri::async_runtime::spawn_blocking(move || faultcodes::scan_pdf(&p))
         .await
         .map_err(|e| ApiError { code: "io".into(), message: e.to_string() })
+}
+
+// ---------- shop logo ----------
+
+#[tauri::command]
+pub fn get_logo(state: State<AppState>) -> R<Option<String>> {
+    Ok(store(&state)?.logo_data_url()?)
+}
+
+#[tauri::command]
+pub fn set_logo_file(state: State<AppState>, path: String) -> R<Loaded<Shop>> {
+    let _g = state.write_lock.lock().unwrap();
+    Ok(store(&state)?.set_logo_file(Path::new(&path))?)
+}
+
+#[tauri::command]
+pub fn set_logo_svg(state: State<AppState>, svg: String) -> R<Loaded<Shop>> {
+    let _g = state.write_lock.lock().unwrap();
+    Ok(store(&state)?.set_logo_svg(&svg)?)
+}
+
+#[tauri::command]
+pub fn clear_logo(state: State<AppState>) -> R<Loaded<Shop>> {
+    let _g = state.write_lock.lock().unwrap();
+    Ok(store(&state)?.clear_logo()?)
 }

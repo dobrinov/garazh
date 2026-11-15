@@ -24,6 +24,14 @@ zip = { version = "2", default-features = false, features = ["deflate"] }
 thiserror = "2"
 ureq = { version = "2", features = ["json"] }
 pdf-extract = "0.12.1"
+base64 = "0.22"
 
 [dev-dependencies]
 tempfile = "3"
+
+[features]
+# On by default so a plain `cargo run` shows the app: the screens are built
+# (by build.rs) and embedded. `pnpm tauri dev` switches it off to load them
+# from the Vite dev server with live reload (see scripts/tauri.mjs).
+default = ["embed-frontend"]
+embed-frontend = ["tauri/custom-protocol"]

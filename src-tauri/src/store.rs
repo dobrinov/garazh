@@ -22,6 +22,10 @@ pub const QUOTES_DIR: &str = "оферти-и-доклади";
 pub const QUOTE_FILE: &str = "документ.md";
 pub const REFERENCE_DIR: &str = "справочници";
 pub const VIN_CACHE_DIR: &str = "vin-отговори";
+const LOGO_STEM: &str = "лого";
+const LOGO_MAX_BYTES: u64 = 5_000_000;
+const LOGO_TYPES: &[(&str, &str)] =
+    &[("png", "image/png"), ("jpg", "image/jpeg"), ("jpeg", "image/jpeg"), ("svg", "image/svg+xml"), ("webp", "image/webp")];
 
 const MILEAGE_HEADER: [&str; 3] = ["Дата", "Км", "Източник"];
 const PARTS_HEADER: [&str; 7] = ["Дата", "Км", "Част", "Марка / кат. №", "К-во", "Цена", "РК"];
@@ -623,6 +627,76 @@ impl Store {
         self.reload(&dir, ORDER_FILE)
     }
 
+    // ---------- shop logo ----------
+
+    /// Copy an image into the data folder as the shop's logo, replacing the old one.
+    pub fn set_logo_file(&self, src: &Path) -> Result<Loaded<Shop>> {
+        let ext = src.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
+        if !LOGO_TYPES.iter().any(|(e, _)| *e == ext) {
+            return Err(StoreError::Invalid("Логото трябва да е PNG, JPG, SVG или WEBP".into()));
+        }
+        let size = fs::metadata(src)?.len();
+        if size > LOGO_MAX_BYTES {
+            return Err(StoreError::Invalid(format!("Файлът е твърде голям ({} MB); до 5 MB", size / 1_000_000)));
+        }
+        let bytes = fs::read(src)?;
+        self.write_logo(&ext, &bytes)
+    }
+
+    /// Use one of the built-in logos (an SVG drawn by the app).
+    pub fn set_logo_svg(&self, svg: &str) -> Result<Loaded<Shop>> {
+        let t = svg.trim();
+        if !t.starts_with("<svg") || t.len() > 100_000 || t.contains("<script") {
+            return Err(StoreError::Invalid("Невалидно лого".into()));
+        }
+        self.write_logo("svg", t.as_bytes())
+    }
+
+    pub fn clear_logo(&self) -> Result<Loaded<Shop>> {
+        let mut shop = self.shop()?;
+        self.remove_logo_files()?;
+        shop.data.logo.clear();
+        self.write_record(&self.root.join(SHOP_FILE), &shop.data, &shop.notes, None)?;
+        self.shop()
+    }
+
+    fn remove_logo_files(&self) -> Result<()> {
+        for (ext, _) in LOGO_TYPES {
+            let p = self.root.join(format!("{LOGO_STEM}.{ext}"));
+            if p.exists() {
+                fs::remove_file(p)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn write_logo(&self, ext: &str, bytes: &[u8]) -> Result<Loaded<Shop>> {
+        let mut shop = self.shop()?;
+        self.remove_logo_files()?;
+        let name = format!("{LOGO_STEM}.{ext}");
+        let tmp = self.root.join(format!(".{name}.tmp"));
+        fs::write(&tmp, bytes)?;
+        fs::rename(&tmp, self.root.join(&name))?;
+        shop.data.logo = name;
+        self.write_record(&self.root.join(SHOP_FILE), &shop.data, &shop.notes, None)?;
+        self.shop()
+    }
+
+    /// The logo as a data: URL the window can show; None when there is none
+    /// or the file was deleted by hand.
+    pub fn logo_data_url(&self) -> Result<Option<String>> {
+        use base64::Engine;
+        let shop = self.shop()?;
+        if shop.data.logo.is_empty() {
+            return Ok(None);
+        }
+        let p = self.root.join(&shop.data.logo);
+        let ext = p.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
+        let Some((_, mime)) = LOGO_TYPES.iter().find(|(e, _)| *e == ext) else { return Ok(None) };
+        let Ok(bytes) = fs::read(&p) else { return Ok(None) };
+        Ok(Some(format!("data:{mime};base64,{}", base64::engine::general_purpose::STANDARD.encode(bytes))))
+    }
+
     // ---------- quotes and reports ----------
 
     pub fn save_quote(&self, input: SaveInput<Quote>) -> Result<Loaded<Quote>> {
@@ -1040,5 +1114,28 @@ mod tests {
         assert_eq!(q2.data.status, "приета");
         assert_eq!(q2.data.orderId, o1.data.id);
         assert!(s.accept_quote(&r.data.id).is_err(), "a report cannot be accepted");
+    }
+
+    #[test]
+    fn logo_is_a_file_in_the_data_folder_and_replaces_the_old_one() {
+        let (d, s) = store();
+        assert_eq!(s.logo_data_url().unwrap(), None);
+        let png = d.path().join("моето лого.PNG");
+        fs::write(&png, [0x89, b'P', b'N', b'G']).unwrap();
+        let shop = s.set_logo_file(&png).unwrap();
+        assert_eq!(shop.data.logo, "лого.png");
+        assert!(s.root.join("лого.png").exists());
+        assert!(s.logo_data_url().unwrap().unwrap().starts_with("data:image/png;base64,iVBO"));
+        let shop = s.set_logo_svg("<svg viewBox='0 0 1 1'></svg>").unwrap();
+        assert_eq!(shop.data.logo, "лого.svg");
+        assert!(!s.root.join("лого.png").exists(), "old logo removed");
+        assert!(s.set_logo_svg("<svg><script>alert(1)</script></svg>").is_err());
+        let txt = d.path().join("a.txt");
+        fs::write(&txt, "x").unwrap();
+        assert!(s.set_logo_file(&txt).is_err());
+        let shop = s.clear_logo().unwrap();
+        assert_eq!(shop.data.logo, "");
+        assert!(!s.root.join("лого.svg").exists());
+        assert_eq!(s.logo_data_url().unwrap(), None);
     }
 }

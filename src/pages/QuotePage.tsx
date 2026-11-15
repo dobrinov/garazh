@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { api, Car, Client, emptyQuote, errorMessage, FileInfo, isConflict, Quote, QuoteKind, Shop } from "../api";
 import { FaultCodes } from "../components/FaultCodes";
+import { useBrand } from "../components/brand";
 import { useFeatures } from "../components/features";
 import { Files } from "../components/Files";
 import { LaborTable, PartsTable, PrintLines } from "../components/Lines";
@@ -307,14 +308,18 @@ export function QuotePage() {
 
 function PrintSheet({ q, ctx, totals }: { q: Quote; ctx: Ctx; totals: ReturnType<typeof computeTotals> }) {
   const s = ctx.shop;
+  const { logo } = useBrand();
   const hasLines = q.labor.some((l) => l.description) || q.parts.some((p) => p.part);
   const row = { display: "flex", justifyContent: "space-between" } as const;
   return (
     <div className="print-only sheet">
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 14 }}>
-        <div>
-          <div style={{ fontSize: 17, fontWeight: 800 }}>{s.name}</div>
-          <div>{[s.address, s.phone, s.eik && `ЕИК ${s.eik}`].filter(Boolean).join(" · ")}</div>
+        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+          {logo && <img className="print-logo" src={logo} alt="" />}
+          <div>
+            <div style={{ fontSize: 17, fontWeight: 800 }}>{s.name}</div>
+            <div>{[s.address, s.phone, s.eik && `ЕИК ${s.eik}`].filter(Boolean).join(" · ")}</div>
+          </div>
         </div>
         <div style={{ textAlign: "right" }}>
           <div style={{ fontSize: 18, fontWeight: 800, textTransform: "uppercase" }}>{PRINT_TITLE[q.kind]}</div>

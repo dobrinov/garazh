@@ -65,6 +65,10 @@ pub fn run() {
             commands::save_quote,
             commands::accept_quote,
             commands::scan_fault_codes,
+            commands::get_logo,
+            commands::set_logo_file,
+            commands::set_logo_svg,
+            commands::clear_logo,
         ])
         .run(tauri::generate_context!())
         .expect("error while running the application");

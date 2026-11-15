@@ -106,6 +106,8 @@ pub struct Shop {
     pub laborRate: Money,
     pub vatPercent: u32,
     pub vatRegistered: bool,
+    /// Logo file in the data folder (e.g. "лого.png"); empty = none.
+    pub logo: String,
     pub counters: Counters,
     pub features: BTreeMap<String, bool>,
     #[serde(flatten)]
@@ -123,6 +125,7 @@ impl Default for Shop {
             laborRate: Money(5000),
             vatPercent: 20,
             vatRegistered: true,
+            logo: String::new(),
             counters: Counters::default(),
             features: BTreeMap::new(),
             extra: Map::new(),

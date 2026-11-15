@@ -1,4 +1,5 @@
 import { NavLink, Outlet } from "react-router-dom";
+import { BrandMark, useBrand } from "./brand";
 import { useFeatures } from "./features";
 import { Icon } from "./ui";
 
@@ -10,15 +11,21 @@ const NAV = [
   { to: "/quotes", label: "Оферти и доклади", icon: "quote", feature: "quotes" as const },
 ];
 
-export function Layout({ shopName }: { shopName: string }) {
+export function Layout() {
   const features = useFeatures();
+  const brand = useBrand();
+  const shopName = brand.name;
   return (
     <div className="app">
       <nav className="side" aria-label="Основна навигация">
         <div className="brand">
-          <div className="brand-mark">
-            <Icon name="wrench" color="#fff" size={20} />
-          </div>
+          {brand.logo ? (
+            <BrandMark logo={brand.logo} />
+          ) : (
+            <div className="brand-mark">
+              <Icon name="wrench" color="#fff" size={20} />
+            </div>
+          )}
           <div>
             <div className="brand-name">{shopName || "Автосервиз"}</div>
             <div className="brand-sub">Управление на автосервиз</div>

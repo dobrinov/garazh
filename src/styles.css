@@ -101,13 +101,16 @@ h3 { font-size: 15px; font-weight: 700; }
   padding: 8px 10px; min-height: 40px; background: #fff; width: 100%;
 }
 .field textarea { min-height: 72px; resize: vertical; }
-.field input:focus, .field select:focus, .field textarea:focus, .input:focus, .search input:focus { outline: 2px solid #fdba8c; border-color: var(--accent); }
+/* Focus: accent border plus a soft ring that follows the rounded corners. */
+.field input:focus, .field select:focus, .field textarea:focus, .input:focus, .tbl.edit input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(194, 65, 12, .16); }
 .field .hint { font-weight: 400; color: var(--muted); font-size: 12px; }
 .field.manual input { border-color: #fdba8c; }
 .check { display: flex; gap: 8px; align-items: center; font-size: 14px; }
 .check input { width: 17px; height: 17px; accent-color: var(--accent); }
 .search { display: flex; align-items: center; gap: 8px; border: 1px solid var(--field); border-radius: 10px; padding: 0 12px; min-height: 42px; background: #fff; }
 .search input { border: 0; outline: none; flex: 1; font: inherit; background: transparent; min-width: 0; }
+.search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(194, 65, 12, .16); }
+.search:focus-within svg { stroke: var(--accent); }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .chip {
   min-height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--field); background: #fff;
@@ -139,25 +142,19 @@ table.tbl { width: 100%; border-collapse: collapse; }
 .badge.violet { background: var(--violet-bg); color: var(--violet); }
 .badge.muted { background: var(--muted-bg); color: var(--ink-2); }
 .badge.manual { background: #fff1e8; color: #9a3412; font-size: 11px; padding: 1px 6px; border-radius: 5px; }
-/* European plate: blue EU band, white field, black frame. Bahnschrift is
-   Windows' DIN-style font, close to the lettering on real plates. */
+/* European-style plate: blue band, white field, black frame. Roboto Condensed
+   (bundled, with Cyrillic) is close to the DIN lettering on real plates. */
 .plate {
   display: inline-flex; align-items: stretch; vertical-align: middle; white-space: nowrap;
   background: #fff; color: #111; border: 1.5px solid #111; border-radius: 4px; overflow: hidden;
-  font-family: "Bahnschrift SemiCondensed", Bahnschrift, "DIN Alternate", "DIN Condensed", "Arial Narrow", Arial, sans-serif;
-  font-weight: 700; font-size: 14px; line-height: 1; letter-spacing: .04em; text-transform: uppercase;
+  font-family: "Roboto Condensed", "Arial Narrow", Arial, sans-serif;
+  font-weight: 600; font-size: 14px; line-height: 1; letter-spacing: .04em; text-transform: uppercase;
   box-shadow: inset 0 0 0 1px #fff, 0 1px 0 rgba(0,0,0,.08);
 }
-.plate-eu {
-  display: flex; flex-direction: column; align-items: center; justify-content: space-between;
-  background: #003399; color: #fff; padding: 2px 3px 2px; width: 14px;
-  font-size: 7.5px; letter-spacing: 0; font-family: Arial, sans-serif; font-weight: 700;
-}
-.plate-eu svg { width: 10px; height: 10px; }
+.plate-eu { background: #003399; width: 9px; flex: none; }
 .plate-num { padding: 4px 7px 3px; }
 .plate.big { font-size: 24px; border-width: 2px; border-radius: 6px; }
-.plate.big .plate-eu { width: 24px; font-size: 11px; padding: 4px 3px 3px; }
-.plate.big .plate-eu svg { width: 18px; height: 18px; }
+.plate.big .plate-eu { width: 15px; }
 .plate.big .plate-num { padding: 6px 12px 5px; }
 dl.facts { margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px 20px; }
 dl.facts dt { font-size: 12px; color: var(--muted); }
@@ -210,3 +207,15 @@ dl.facts dd { margin: 2px 0 0; font-weight: 600; }
 .link-row:hover { background: var(--ground); }
 .link-row svg { margin-top: 3px; color: var(--link); flex: none; }
 .link-name { font-weight: 600; }
+
+/* ---------- shop logo ---------- */
+.brand-logo { width: 36px; height: 36px; border-radius: 9px; object-fit: contain; background: #fff; flex-shrink: 0; }
+.logo-picker { display: flex; flex-direction: column; gap: 12px; }
+.logo-current { display: flex; gap: 16px; align-items: center; }
+.logo-preview { width: 96px; height: 96px; border: 1px dashed var(--field); border-radius: 14px; display: grid; place-items: center; background: #fff; overflow: hidden; flex: none; }
+.logo-preview img { width: 100%; height: 100%; object-fit: contain; }
+.logo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 8px; }
+.logo-option { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 6px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); cursor: pointer; color: var(--ink-2); font: inherit; }
+.logo-option:hover { border-color: var(--accent); }
+.logo-option img { width: 48px; height: 48px; }
+.print-logo { width: 56px; height: 56px; object-fit: contain; }

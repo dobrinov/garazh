@@ -1,21 +1,22 @@
 import { open } from "@tauri-apps/plugin-dialog";
 import { useEffect, useState } from "react";
 import { api, AppConfig, errorMessage, Loaded, Shop } from "../api";
+import { useBrand } from "../components/brand";
+import { LogoPicker } from "../components/LogoPicker";
 import { Icon, Loading, TextField, useToast } from "../components/ui";
 import { FEATURES, FeatureKey, resolveFeatures, toggle } from "../lib/features";
 
 export function Settings({
   config,
   onConfig,
-  onShopName,
   onFeatures,
 }: {
   config: AppConfig;
   onConfig: (c: AppConfig) => void;
-  onShopName: (n: string) => void;
   onFeatures: (f: Record<string, boolean>) => void;
 }) {
   const toast = useToast();
+  const brand = useBrand();
   const [shop, setShop] = useState<Loaded<Shop> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [backupDir, setBackupDir] = useState(config.backupDir ?? "");
@@ -36,7 +37,7 @@ export function Settings({
     try {
       const saved = await api.saveShop({ data: shop.data, notes: shop.notes, baseHash: shop.hash });
       setShop(saved);
-      onShopName(saved.data.name);
+      brand.refresh();
       toast("Данните за сервиза са запазени");
     } catch (e) {
       toast(errorMessage(e), true);
@@ -132,6 +133,10 @@ export function Settings({
           <TextField label="ЕИК" value={s.eik} onChange={(v) => set("eik", v)} mono />
           <TextField label="Цена на труда (€ / час)" value={s.laborRate} onChange={(v) => set("laborRate", v)} mono />
           <TextField label="ДДС (%)" type="number" value={s.vatPercent} onChange={(v) => set("vatPercent", Math.max(0, Number(v) || 0))} />
+        </div>
+        <div className="field">
+          Лого (в менюто и на отпечатаните документи)
+          <LogoPicker shopName={s.name} logo={brand.logo} onChange={brand.refresh} />
         </div>
         <label className="check"><input type="checkbox" checked={s.vatRegistered} onChange={(e) => set("vatRegistered", e.target.checked)} />Регистриран по ДДС (начислява се ДДС в работните карти)</label>
         <div className="muted small">Следващ клиент №{s.counters.client + 1} · следваща работна карта №{s.counters.workOrder + 1}</div>

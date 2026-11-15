@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { HashRouter, Route, Routes } from "react-router-dom";
 import { api, AppConfig, errorMessage } from "./api";
 import { Layout } from "./components/Layout";
+import { BrandProvider } from "./components/brand";
 import { FeaturesProvider } from "./components/features";
 import { ToastProvider } from "./components/ui";
 import { CarEdit } from "./pages/CarEdit";
@@ -20,7 +21,6 @@ import { WorkOrderPage } from "./pages/WorkOrderPage";
 
 export function App() {
   const [config, setConfig] = useState<AppConfig | null>(null);
-  const [shopName, setShopName] = useState("");
   const [features, setFeatures] = useState<Record<string, boolean> | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
 
@@ -32,11 +32,8 @@ export function App() {
     if (config?.dataDir) {
       api
         .getShop()
-        .then((s) => {
-          setShopName(s.data.name);
-          setFeatures(s.data.features);
-        })
-        .catch(() => setShopName(""));
+        .then((s) => setFeatures(s.data.features))
+        .catch(() => setFeatures(undefined));
     }
   }, [config?.dataDir]);
 
@@ -45,13 +42,14 @@ export function App() {
 
   return (
     <ToastProvider>
+      <BrandProvider enabled={!!config.dataDir}>
       {!config.dataDir ? (
         <Setup onDone={setConfig} />
       ) : (
         <FeaturesProvider value={features}>
         <HashRouter>
           <Routes>
-            <Route element={<Layout shopName={shopName} />}>
+            <Route element={<Layout />}>
               <Route index element={<Dashboard />} />
               <Route path="clients" element={<Clients />} />
               <Route path="clients/new" element={<ClientEdit />} />
@@ -69,13 +67,14 @@ export function App() {
               <Route path="quotes/:id" element={<QuotePage />} />
               <Route
                 path="settings"
-                element={<Settings config={config} onConfig={setConfig} onShopName={setShopName} onFeatures={setFeatures} />}
+                element={<Settings config={config} onConfig={setConfig} onFeatures={setFeatures} />}
               />
             </Route>
           </Routes>
         </HashRouter>
         </FeaturesProvider>
       )}
+      </BrandProvider>
     </ToastProvider>
   );
 }

@@ -28,8 +28,8 @@ Version 1.0 adds:
 - **Feature switches** in Settings (stored in `сервиз.md` under `функции`);
   a switched-off feature hides its menus and sections and keeps its files
 - **VIN decoding**: make, model (VW group) and model year offline from the
-  VIN; optional online lookup through NHTSA vPIC (switched off by default,
-  sends only the VIN, answers cached in `справочници\vin-отговори\`).
+  VIN; online lookup through NHTSA vPIC (on by default, can be switched off;
+  sends only the VIN, on click, answers cached in `справочници\vin-отговори\`).
   Fields filled from the VIN are listed under `от_vin:`; typing over one moves
   it to `ръчно:` and later lookups leave it alone
 - **Maintenance schedule**: interval files in `справочници\графици\`, picked
@@ -94,10 +94,14 @@ pnpm test               # UI tests
 cd src-tauri && cargo test   # core tests (file store, money, usage, backup)
 ```
 
-`cargo run` on its own opens a white window: in development the window loads
-the screens from the Vite dev server (`http://localhost:1420`), which
-`pnpm tauri dev` starts for you. If you want `cargo run`, keep `pnpm dev`
-running in another terminal.
+Two ways to run it:
+
+- `pnpm tauri dev`: loads the screens from the Vite dev server, so changes to
+  `src/` show up at once. It runs cargo without the `embed-frontend` feature
+  (see `scripts/tauri.mjs`).
+- `cargo run` (in `src-tauri`): `embed-frontend` is on by default, so
+  `build.rs` rebuilds the screens with `pnpm run build` when `src/` changed
+  and builds them into the app. No dev server is needed; Node and pnpm are.
 
 Sample data to try the app with:
 
