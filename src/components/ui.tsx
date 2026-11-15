@@ -96,8 +96,25 @@ export function Loading({ error }: { error: string | null }) {
 
 // ---------- small pieces ----------
 
+// The twelve stars of the EU band, on a circle.
+const STARS = Array.from({ length: 12 }, (_, i) => {
+  const a = (i / 12) * Math.PI * 2;
+  return [5 + 3.3 * Math.sin(a), 5 - 3.3 * Math.cos(a)];
+});
+
+/** A Bulgarian registration plate in the European format: blue EU band with "BG", white field, black frame. */
 export function Plate({ value, big }: { value: string; big?: boolean }) {
-  return <span className={`plate ${big ? "big" : ""}`}>{value || "без номер"}</span>;
+  return (
+    <span className={`plate ${big ? "big" : ""}`} aria-label={value ? `Рег. номер ${value}` : "Без номер"}>
+      <span className="plate-eu" aria-hidden="true">
+        <svg viewBox="0 0 10 10">
+          {STARS.map(([x, y], i) => <circle key={i} cx={x} cy={y} r="0.62" fill="#ffd617" />)}
+        </svg>
+        <span>BG</span>
+      </span>
+      <span className="plate-num">{value || "без номер"}</span>
+    </span>
+  );
 }
 
 export function StatusBadge({ status }: { status: string }) {

@@ -1,4 +1,4 @@
-import React, { FormEvent, useEffect, useState } from "react";
+import React, { FormEvent, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { api, Car, ClientSummary, emptyCar, errorMessage, isConflict, VinResult } from "../api";
 import { useFeatures } from "../components/features";
@@ -24,6 +24,8 @@ export function CarEdit() {
   const features = useFeatures();
   const [vinResult, setVinResult] = useState<VinResult | null>(null);
   const [decoding, setDecoding] = useState(false);
+  const carRef = useRef<Car | null>(car);
+  carRef.current = car;
 
   useEffect(() => {
     api.listClients().then((cs) => setClients([...cs].sort((a, b) => a.client.name.localeCompare(b.client.name, "bg"))));
@@ -42,11 +44,13 @@ export function CarEdit() {
   const set = <K extends keyof Car>(k: K, v: Car[K]) => {
     // Typing over a value that came from the VIN marks the field as manual,
     // so a later VIN lookup leaves it alone.
-    if ((VIN_FIELDS as readonly string[]).includes(k as string) && car.vinFields.includes(k as string)) {
-      setCar({ ...car, [k]: v, vinFields: car.vinFields.filter((f) => f !== k), manualFields: [...new Set([...car.manualFields, k as string])] });
-    } else {
-      setCar({ ...car, [k]: v });
-    }
+    const base = carRef.current ?? car;
+    const next =
+      (VIN_FIELDS as readonly string[]).includes(k as string) && base.vinFields.includes(k as string)
+        ? { ...base, [k]: v, vinFields: base.vinFields.filter((f) => f !== k), manualFields: [...new Set([...base.manualFields, k as string])] }
+        : { ...base, [k]: v };
+    carRef.current = next;
+    setCar(next);
   };
   const suggestion = (k: VinKey) => {
     const f = vinResult?.fields.find((x) => x.field === k);
@@ -76,7 +80,13 @@ export function CarEdit() {
     try {
       const r = await api.decodeVin(vin);
       setVinResult(r);
-      const { car: next, filled } = applyVin(car, r);
+      // Apply the answer to the form as it is now, not as it was when the
+      // lookup started: the VIN was typed or pasted in that same moment, and
+      // the user may have typed more while waiting.
+      const latest = carRef.current;
+      if (!latest) return;
+      const { car: next, filled } = applyVin(latest, r);
+      carRef.current = next;
       setCar(next);
       if (!r.valid) toast(r.warnings[0] ?? "Невалиден VIN", true);
       else toast(filled.length ? `Попълнени от VIN: ${filled.length} полета` : "Няма нови данни от VIN");
@@ -131,12 +141,7 @@ export function CarEdit() {
             <TextField
               label="VIN"
               value={car.vin}
-              onChange={(v) => {
-                const vin = v.toUpperCase().replace(/\s/g, "");
-                set("vin", vin);
-                // Decode as soon as a full VIN is typed or pasted into a new car.
-                if (features.vin && vin.length === 17 && car.vin.length !== 17 && !id) decode(vin);
-              }}
+              onChange={(v) => set("vin", v.toUpperCase().replace(/\s/g, ""))}
               placeholder="17 знака"
               mono
               hint={car.vin && car.vin.length !== 17 ? `${car.vin.length} от 17 знака` : vinResult ? [vinResult.country, ...vinResult.warnings].filter(Boolean).join(" · ") : undefined}
