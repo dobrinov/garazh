@@ -91,6 +91,8 @@ impl<'de> Deserialize<'de> for Money {
 pub struct Counters {
     pub client: u32,
     pub workOrder: u32,
+    pub quote: u32,
+    pub report: u32,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -171,6 +173,10 @@ pub struct Car {
     pub vignetteUntil: Option<String>,
     /// Fields the user typed over an automatic (VIN) value.
     pub manualFields: Vec<String>,
+    /// Fields last filled from the VIN (not typed by hand).
+    pub vinFields: Vec<String>,
+    /// Schedule files chosen by hand; empty = matched by engine and gearbox code.
+    pub schedules: Vec<String>,
     pub pastOwners: Vec<String>,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
@@ -235,15 +241,67 @@ pub struct Totals {
     pub total: Money,
 }
 
+pub fn totals(labor: &[LaborLine], parts: &[PartLine], discount_percent: u32, vat_percent: u32) -> Totals {
+    let labor = Money(labor.iter().map(|l| l.rate.times(l.hours).0).sum());
+    let parts = Money(parts.iter().map(|p| p.price.times(p.quantity).0).sum());
+    let gross = Money(labor.0 + parts.0);
+    let discount = gross.percent(discount_percent);
+    let net = Money(gross.0 - discount.0);
+    let vat = net.percent(vat_percent);
+    Totals { labor, parts, discount, net, vat, total: Money(net.0 + vat.0) }
+}
+
 impl WorkOrder {
     pub fn totals(&self) -> Totals {
-        let labor = Money(self.labor.iter().map(|l| l.rate.times(l.hours).0).sum());
-        let parts = Money(self.parts.iter().map(|p| p.price.times(p.quantity).0).sum());
-        let gross = Money(labor.0 + parts.0);
-        let discount = gross.percent(self.discountPercent);
-        let net = Money(gross.0 - discount.0);
-        let vat = net.percent(self.vatPercent);
-        Totals { labor, parts, discount, net, vat, total: Money(net.0 + vat.0) }
+        totals(&self.labor, &self.parts, self.discountPercent, self.vatPercent)
+    }
+}
+
+pub const QUOTE: &str = "оферта";
+pub const REPAIR_REPORT: &str = "доклад";
+pub const DIAGNOSTIC_REPORT: &str = "диагностика";
+
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
+#[serde(rename_all = "camelCase", default)]
+pub struct FaultRow {
+    pub code: String,
+    pub text: String,
+}
+
+/// A quote or a report for the customer (a folder under the car's
+/// `оферти-и-доклади`). Quotes carry priced lines; reports describe what
+/// was found or done.
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Quote {
+    pub id: String,
+    pub number: String,
+    /// оферта | доклад | диагностика
+    pub kind: String,
+    pub clientId: String,
+    pub carId: String,
+    /// The work order it was made from, or the one made from it.
+    pub orderId: String,
+    pub date: String,
+    pub validUntil: Option<String>,
+    pub title: String,
+    pub mileage: Option<u64>,
+    /// чернова | изпратена | приета | отказана
+    pub status: String,
+    pub findings: String,
+    pub recommendations: String,
+    pub faultCodes: Vec<FaultRow>,
+    pub labor: Vec<LaborLine>,
+    pub parts: Vec<PartLine>,
+    pub discountPercent: u32,
+    pub vatPercent: u32,
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
+}
+
+impl Quote {
+    pub fn totals(&self) -> Totals {
+        totals(&self.labor, &self.parts, self.discountPercent, self.vatPercent)
     }
 }
 

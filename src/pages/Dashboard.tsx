@@ -1,7 +1,8 @@
 import { Link, useNavigate } from "react-router-dom";
-import { api } from "../api";
+import { api, Dashboard as DashboardData } from "../api";
+type Dashboard = DashboardData;
 import { DeadlineBadge, Icon, Loading, Plate, StatusBadge, useLoad } from "../components/ui";
-import { date, euro } from "../lib/format";
+import { date, euro, int } from "../lib/format";
 
 export function Dashboard() {
   const nav = useNavigate();
@@ -94,7 +95,44 @@ export function Dashboard() {
         </section>
       </div>
 
+      {data.maintenance.length > 0 && <Maintenance rows={data.maintenance} />}
+
       <p className="muted small">{data.clients} клиенти · {data.cars} автомобила</p>
     </div>
+  );
+}
+
+function Maintenance({ rows }: { rows: Dashboard["maintenance"] }) {
+  const nav = useNavigate();
+  // One line per car: its most urgent item, plus how many more are due.
+  const byCar = new Map<string, Dashboard["maintenance"]>();
+  for (const r of rows) byCar.set(r.carId, [...(byCar.get(r.carId) ?? []), r]);
+  const cars = [...byCar.values()].sort((a, b) => (a[0].nextDate ?? "").localeCompare(b[0].nextDate ?? ""));
+  return (
+    <section className="card">
+      <div className="card-head">
+        <h2>Предстоящо обслужване</h2>
+        <span className="muted small">по графика и натоварването на колата · за напомняне на клиента</span>
+      </div>
+      <div className="table-wrap">
+        <table className="tbl">
+          <thead><tr><th>Автомобил</th><th>Клиент</th><th>Обслужване</th><th>Кога</th><th /></tr></thead>
+          <tbody>
+            {cars.map((items) => {
+              const r = items[0];
+              return (
+                <tr key={r.carId} className="link" onClick={() => nav(`/cars/${r.carId}`)}>
+                  <td><Plate value={r.plate} /><div className="small muted">{r.carName}</div></td>
+                  <td>{r.clientName}</td>
+                  <td>{r.operation}{items.length > 1 && <span className="small muted"> и още {items.length - 1}</span>}</td>
+                  <td className="mono small">{date(r.nextDate)}{r.kmLeft !== null && <div className="muted">{r.kmLeft < 0 ? `${int(-r.kmLeft)} км след срока` : `след ${int(r.kmLeft)} км`}</div>}</td>
+                  <td><span className={`badge ${r.status === "просрочено" ? "bad" : "warn"}`}>{r.status === "просрочено" ? "Просрочено" : "Скоро"}</span></td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }

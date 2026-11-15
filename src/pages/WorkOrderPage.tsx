@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { api, Car, Client, emptyOrder, errorMessage, FileInfo, isConflict, Shop, Usage, WorkOrder } from "../api";
+import { FaultCodes } from "../components/FaultCodes";
+import { useFeatures } from "../components/features";
 import { Files } from "../components/Files";
+import { LaborTable, PartsTable, PrintLines } from "../components/Lines";
 import { Icon, Loading, Plate, TextField, useToast } from "../components/ui";
 import { date, euro, int, km, STATUS_LABEL, STATUS_ORDER, todayIso } from "../lib/format";
-import { computeTotals, lineCents } from "../lib/totals";
+import { computeTotals } from "../lib/totals";
 
 interface Ctx {
   car: Car;
@@ -29,6 +32,7 @@ export function WorkOrderPage() {
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState(false);
   const [tick, setTick] = useState(0);
+  const features = useFeatures();
 
   useEffect(() => {
     let alive = true;
@@ -145,6 +149,12 @@ export function WorkOrderPage() {
         </div>
         <div className="row">
           {dir && <button className="btn" onClick={() => api.openPath(dir)}><Icon name="folder" />Папка</button>}
+          {features.quotes && id && (
+            <>
+              <Link className="btn" to={`/quotes/new?order=${id}&kind=диагностика`}>Доклад от диагностика</Link>
+              <Link className="btn" to={`/quotes/new?order=${id}&kind=доклад`}>Доклад за ремонта</Link>
+            </>
+          )}
           <button className="btn" onClick={() => window.print()} disabled={!id}><Icon name="print" />Печат / PDF</button>
           <button className="btn" onClick={save} disabled={busy || (!dirty && !!id)}>{dirty || !id ? "Запази" : "Запазено"}</button>
           {!closed && <button className="btn primary" onClick={close} disabled={busy}><Icon name="check" />Приключи</button>}
@@ -183,70 +193,17 @@ export function WorkOrderPage() {
             </label>
           </section>
 
-          <section className="card">
-            <div className="card-head">
-              <h2>Извършени дейности (труд)</h2>
-              <button className="btn small" onClick={() => update({ labor: [...order.labor, { description: "", mechanic: order.mechanic, hours: 1, rate: ctx.shop.laborRate }] })}>+ Дейност</button>
-            </div>
-            <div className="table-wrap">
-              <table className="tbl edit">
-                <thead><tr><th style={{ width: "46%" }}>Дейност</th><th>Механик</th><th className="right">Часове</th><th className="right">Ставка €</th><th className="right">Сума</th><th /></tr></thead>
-                <tbody>
-                  {order.labor.map((l, i) => {
-                    const set = (p: Partial<typeof l>) => update({ labor: order.labor.map((x, j) => (j === i ? { ...x, ...p } : x)) });
-                    return (
-                      <tr key={i}>
-                        <td><input value={l.description} onChange={(e) => set({ description: e.target.value })} aria-label="Дейност" /></td>
-                        <td><input value={l.mechanic} onChange={(e) => set({ mechanic: e.target.value })} aria-label="Механик" /></td>
-                        <td><NumInput value={l.hours} onChange={(v) => set({ hours: v })} label="Часове" /></td>
-                        <td><input className="mono right" value={l.rate} onChange={(e) => set({ rate: e.target.value })} aria-label="Ставка" /></td>
-                        <td className="mono right nowrap">{euro(lineCents(l.rate, l.hours))}</td>
-                        <td><button className="btn small icon-btn danger" aria-label="Премахни дейността" onClick={() => update({ labor: order.labor.filter((_, j) => j !== i) })}><Icon name="trash" size={15} /></button></td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </section>
+          <LaborTable title="Извършени дейности (труд)" lines={order.labor} onChange={(labor) => update({ labor })} rate={ctx.shop.laborRate} mechanic={order.mechanic} />
 
-          <section className="card">
-            <div className="card-head">
-              <div>
-                <h2>Части и консумативи</h2>
-                <div className="small muted">При приключване се записват в историята на колата с пробега от приемането.</div>
-              </div>
-              <button className="btn small" onClick={() => update({ parts: [...order.parts, { part: "", partNumber: "", quantity: 1, unit: "бр.", price: "0.00" }] })}>+ Част</button>
-            </div>
-            <div className="table-wrap">
-              <table className="tbl edit">
-                <thead><tr><th style={{ width: "32%" }}>Част</th><th>Марка / кат. №</th><th className="right">К-во</th><th>Мярка</th><th className="right">Ед. цена €</th><th className="right">Сума</th><th /></tr></thead>
-                <tbody>
-                  {order.parts.length === 0 && <tr><td colSpan={7} className="muted small" style={{ padding: 14 }}>Няма добавени части.</td></tr>}
-                  {order.parts.map((p, i) => {
-                    const set = (patch: Partial<typeof p>) => update({ parts: order.parts.map((x, j) => (j === i ? { ...x, ...patch } : x)) });
-                    return (
-                      <tr key={i}>
-                        <td><input value={p.part} onChange={(e) => set({ part: e.target.value })} aria-label="Част" /></td>
-                        <td><input value={p.partNumber} onChange={(e) => set({ partNumber: e.target.value })} aria-label="Марка или каталожен номер" /></td>
-                        <td style={{ width: 90 }}><NumInput value={p.quantity} onChange={(v) => set({ quantity: v })} label="Количество" /></td>
-                        <td style={{ width: 80 }}><input value={p.unit} onChange={(e) => set({ unit: e.target.value })} aria-label="Мярка" list="units" /></td>
-                        <td style={{ width: 110 }}><input className="mono right" value={p.price} onChange={(e) => set({ price: e.target.value })} aria-label="Единична цена" /></td>
-                        <td className="mono right nowrap">{euro(lineCents(p.price, p.quantity))}</td>
-                        <td><button className="btn small icon-btn danger" aria-label="Премахни частта" onClick={() => update({ parts: order.parts.filter((_, j) => j !== i) })}><Icon name="trash" size={15} /></button></td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-            <datalist id="units"><option value="бр." /><option value="л" /><option value="к-т" /><option value="м" /></datalist>
-          </section>
+          <PartsTable title="Части и консумативи" hint="При приключване се записват в историята на колата с пробега от приемането." lines={order.parts} onChange={(parts) => update({ parts })} />
 
           <section className="card pad">
             <h2 style={{ marginBottom: 12 }}>Диагностика и файлове</h2>
             {id ? (
-              <Files files={ctx.files} target="order" id={id} onChange={() => setTick((t) => t + 1)} hint="Файловете се записват в папката на този ремонт" />
+              <>
+                <Files files={ctx.files} target="order" id={id} onChange={() => setTick((t) => t + 1)} hint="Файловете се записват в папката на този ремонт" />
+                {features.faultCodes && <FaultCodes files={ctx.files} />}
+              </>
             ) : (
               <div className="muted">Запазете картата, за да прикачите файлове.</div>
             )}
@@ -287,27 +244,6 @@ export function WorkOrderPage() {
   );
 }
 
-function NumInput({ value, onChange, label }: { value: number; onChange: (v: number) => void; label: string }) {
-  const [text, setText] = useState(String(value));
-  useEffect(() => {
-    if (Number(text.replace(",", ".")) !== value) setText(String(value));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value]);
-  return (
-    <input
-      className="mono right"
-      inputMode="decimal"
-      value={text}
-      aria-label={label}
-      onChange={(e) => {
-        setText(e.target.value);
-        const n = Number(e.target.value.replace(",", "."));
-        if (Number.isFinite(n)) onChange(n);
-      }}
-    />
-  );
-}
-
 function PrintSheet({ order, ctx, notes, totals }: { order: WorkOrder; ctx: Ctx; notes: string; totals: ReturnType<typeof computeTotals> }) {
   const s = ctx.shop;
   return (
@@ -331,17 +267,7 @@ function PrintSheet({ order, ctx, notes, totals }: { order: WorkOrder; ctx: Ctx;
         </tbody>
       </table>
       {order.complaint && <p><strong>Оплакване:</strong> {order.complaint}</p>}
-      <table>
-        <thead><tr><th>Позиция</th><th style={{ textAlign: "right" }}>К-во</th><th style={{ textAlign: "right" }}>Цена</th><th style={{ textAlign: "right" }}>Сума</th></tr></thead>
-        <tbody>
-          {order.labor.filter((l) => l.description).map((l, i) => (
-            <tr key={`l${i}`}><td>{l.description}</td><td style={{ textAlign: "right" }}>{l.hours} ч</td><td style={{ textAlign: "right" }}>{euro(l.rate)}</td><td style={{ textAlign: "right" }}>{euro(lineCents(l.rate, l.hours))}</td></tr>
-          ))}
-          {order.parts.filter((p) => p.part).map((p, i) => (
-            <tr key={`p${i}`}><td>{p.part}{p.partNumber && <span> · {p.partNumber}</span>}</td><td style={{ textAlign: "right" }}>{p.quantity} {p.unit}</td><td style={{ textAlign: "right" }}>{euro(p.price)}</td><td style={{ textAlign: "right" }}>{euro(lineCents(p.price, p.quantity))}</td></tr>
-          ))}
-        </tbody>
-      </table>
+      <PrintLines labor={order.labor} parts={order.parts} />
       <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
         <div style={{ width: 260 }}>
           <div style={{ display: "flex", justifyContent: "space-between" }}><span>Сума</span><span>{euro(totals.labor + totals.parts)}</span></div>

@@ -144,7 +144,7 @@ pub fn deadlines(c: &Car, today: &str) -> Vec<Deadline> {
 }
 
 /// Readings from пробег.md plus the mileage written on work orders.
-fn all_readings(scan: &Scan, car_id: &str, base: &[Reading]) -> Vec<Reading> {
+pub fn all_readings(scan: &Scan, car_id: &str, base: &[Reading]) -> Vec<Reading> {
     let mut rs = base.to_vec();
     for o in scan.orders.iter().filter(|o| o.data.carId == car_id) {
         if let Some(km) = o.data.mileage {

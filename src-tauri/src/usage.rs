@@ -91,8 +91,7 @@ pub fn compute(readings: &[Reading]) -> Usage {
 }
 
 /// The date the car is expected to have covered `km_left` more km at its recent pace.
-/// Used by the maintenance schedule (version 1.0).
-#[allow(dead_code)]
+/// Used by the maintenance schedule.
 pub fn forecast(u: &Usage, km_left: u64) -> Option<String> {
     let per_day = u.recentPerDay.filter(|p| *p > 0.0)?;
     let from = date(u.lastDate.as_deref()?)?;

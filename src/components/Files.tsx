@@ -14,7 +14,7 @@ export function Files({
   hint,
 }: {
   files: FileInfo[];
-  target: "car" | "order";
+  target: "car" | "order" | "quote";
   id: string;
   onChange: () => void;
   hint?: string;

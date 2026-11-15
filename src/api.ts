@@ -27,7 +27,7 @@ export interface Shop {
   laborRate: Money;
   vatPercent: number;
   vatRegistered: boolean;
-  counters: { client: number; workOrder: number };
+  counters: { client: number; workOrder: number; quote: number; report: number };
   features: Record<string, boolean>;
   [extra: string]: unknown;
 }
@@ -68,6 +68,8 @@ export interface Car {
   insuranceUntil: string | null;
   vignetteUntil: string | null;
   manualFields: string[];
+  vinFields: string[];
+  schedules: string[];
   pastOwners: string[];
   [extra: string]: unknown;
 }
@@ -234,6 +236,119 @@ export interface OrderDetail {
   carUsage: Usage;
 }
 
+// ---------- v1.0: maintenance, links, VIN, quotes, fault codes ----------
+
+export interface ScheduleInfo {
+  file: string;
+  path: string;
+  kind: string; // "двигател" | "кутия" | "общ"
+  meta: { name: string; makes: string[]; engines: string[]; gearboxes: string[]; fuel: string; source: string; verified: boolean };
+  intervals: { operation: string; km: number | null; months: number | null; search: string; note: string }[];
+}
+
+export type DueStatus = "просрочено" | "скоро" | "наред" | "няма_запис";
+
+export interface DueItem {
+  schedule: string;
+  operation: string;
+  intervalKm: number | null;
+  intervalMonths: number | null;
+  note: string;
+  last: { date: string; km: number | null; what: string } | null;
+  dueKm: number | null;
+  kmLeft: number | null;
+  dueByTime: string | null;
+  dueByKm: string | null;
+  nextDate: string | null;
+  daysLeft: number | null;
+  status: DueStatus;
+}
+
+export interface CarSchedule {
+  schedules: ScheduleInfo[];
+  pinned: boolean;
+  items: DueItem[];
+  available: { file: string; name: string; kind: string }[];
+}
+
+export interface UsefulLink {
+  name: string;
+  url: string;
+  note: string;
+  group: string;
+  file: string;
+}
+
+export interface VinField {
+  field: keyof Car & string;
+  value: string;
+  source: string;
+}
+
+export interface VinResult {
+  vin: string;
+  valid: boolean;
+  country: string;
+  fields: VinField[];
+  warnings: string[];
+  online: boolean;
+}
+
+export type QuoteKind = "оферта" | "доклад" | "диагностика";
+
+export interface Quote {
+  id: string;
+  number: string;
+  kind: QuoteKind;
+  clientId: string;
+  carId: string;
+  orderId: string;
+  date: string;
+  validUntil: string | null;
+  title: string;
+  mileage: number | null;
+  status: string; // чернова | изпратена | приета | отказана
+  findings: string;
+  recommendations: string;
+  faultCodes: { code: string; text: string }[];
+  labor: LaborLine[];
+  parts: PartLine[];
+  discountPercent: number;
+  vatPercent: number;
+  [extra: string]: unknown;
+}
+
+export interface QuoteSummary {
+  quote: Quote;
+  totals: Totals;
+  plate: string;
+  carName: string;
+  clientName: string;
+  orderNumber: string;
+}
+
+export interface QuoteDetail {
+  quote: Loaded<Quote>;
+  totals: Totals;
+  car: Car;
+  client: Client;
+  orderNumber: string;
+  files: FileInfo[];
+}
+
+export interface FaultScan {
+  file: string;
+  codes: { code: string; system: string; text: string }[];
+  hasText: boolean;
+  error: string | null;
+}
+
+export interface CarPage extends CarDetail {
+  schedule: CarSchedule | null;
+  links: UsefulLink[];
+  quotes: QuoteSummary[];
+}
+
 export interface Problem {
   path: string;
   message: string;
@@ -254,6 +369,16 @@ export interface Dashboard {
   monthTurnover: Money;
   unpaid: Money;
   problems: Problem[];
+  maintenance: {
+    carId: string;
+    plate: string;
+    carName: string;
+    clientName: string;
+    operation: string;
+    status: DueStatus;
+    nextDate: string | null;
+    kmLeft: number | null;
+  }[];
 }
 
 export interface SaveInput<T> {
@@ -296,7 +421,7 @@ export const api = {
   getClient: (id: string) => invoke<ClientDetail>("get_client", { id }),
   saveClient: (input: SaveInput<Client>) => invoke<Loaded<Client>>("save_client", { input }),
 
-  getCar: (id: string) => invoke<CarDetail>("get_car", { id }),
+  getCar: (id: string) => invoke<CarPage>("get_car", { id }),
   saveCar: (input: SaveInput<Car>) => invoke<Loaded<Car>>("save_car", { input }),
   addReading: (carId: string, reading: Reading) => invoke<void>("add_reading", { carId, reading }),
   addParts: (carId: string, rows: PartRow[]) => invoke<void>("add_parts", { carId, rows }),
@@ -305,9 +430,45 @@ export const api = {
   saveOrder: (input: SaveInput<WorkOrder>) => invoke<Loaded<WorkOrder>>("save_order", { input }),
   closeOrder: (id: string) => invoke<Loaded<WorkOrder>>("close_order", { id }),
 
-  attachFiles: (target: "car" | "order", id: string, paths: string[]) =>
+  attachFiles: (target: "car" | "order" | "quote", id: string, paths: string[]) =>
     invoke<FileInfo[]>("attach_files", { target, id, paths }),
+
+  openUrl: (url: string) => invoke<void>("open_url", { url }),
+  decodeVin: (vin: string) => invoke<VinResult>("decode_vin", { vin }),
+  markDone: (carId: string, row: { operation: string; date: string; km: number | null; note: string }) =>
+    invoke<void>("mark_done", { carId, row }),
+  installReference: (overwrite: boolean) => invoke<number>("install_reference", { overwrite }),
+  referenceDir: (kind: "schedules" | "links") => invoke<string>("reference_dir", { kind }),
+
+  listQuotes: () => invoke<QuoteSummary[]>("list_quotes"),
+  getQuote: (id: string) => invoke<QuoteDetail>("get_quote", { id }),
+  saveQuote: (input: SaveInput<Quote>) => invoke<Loaded<Quote>>("save_quote", { input }),
+  acceptQuote: (id: string) => invoke<Loaded<WorkOrder>>("accept_quote", { id }),
+  scanFaultCodes: (path: string) => invoke<FaultScan>("scan_fault_codes", { path }),
 };
+
+export function emptyQuote(carId: string, kind: QuoteKind): Quote {
+  return {
+    id: "",
+    number: "",
+    kind,
+    clientId: "",
+    carId,
+    orderId: "",
+    date: "",
+    validUntil: null,
+    title: "",
+    mileage: null,
+    status: "чернова",
+    findings: "",
+    recommendations: "",
+    faultCodes: [],
+    labor: [],
+    parts: [],
+    discountPercent: 0,
+    vatPercent: 0,
+  };
+}
 
 export function emptyClient(): Client {
   return {
@@ -347,6 +508,8 @@ export function emptyCar(clientId: string): Car {
     insuranceUntil: null,
     vignetteUntil: null,
     manualFields: [],
+    vinFields: [],
+    schedules: [],
     pastOwners: [],
   };
 }

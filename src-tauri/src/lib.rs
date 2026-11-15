@@ -4,6 +4,10 @@
 mod backup;
 mod commands;
 mod config;
+pub mod faultcodes;
+pub mod links;
+pub mod schedule;
+pub mod vin;
 pub mod md;
 pub mod model;
 pub mod names;
@@ -51,6 +55,16 @@ pub fn run() {
             commands::close_order,
             commands::attach_files,
             commands::record_dir,
+            commands::open_url,
+            commands::decode_vin,
+            commands::mark_done,
+            commands::install_reference,
+            commands::reference_dir,
+            commands::list_quotes,
+            commands::get_quote,
+            commands::save_quote,
+            commands::accept_quote,
+            commands::scan_fault_codes,
         ])
         .run(tauri::generate_context!())
         .expect("error while running the application");

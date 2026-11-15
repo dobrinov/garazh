@@ -99,5 +99,39 @@ fn main() {
     let bmw = car(&firm.id, "РВ 2045 ТМ", "BMW", "320d F30", 2014, "WBA3D31070F612840", ("2.0d 135 kW", "N47D20"), ("8 ст. автомат.", "ZF 8HP"), "2026-12-03");
     order(&bmw.id, "2026-06-12", "Ангренажна верига", 298_000, vec![("Смяна на ангренажна верига", 9.0)], vec![("Комплект ангренажна верига", "Febi", 1.0, "к-т", "310")], true, false);
 
+    // A quote waiting for an answer, and a diagnostic report for the open repair.
+    store
+        .save_quote(SaveInput {
+            data: Quote {
+                kind: QUOTE.into(),
+                carId: octavia.id.clone(),
+                date: "2026-11-10".into(),
+                validUntil: Some("2026-11-24".into()),
+                title: "Смяна на съединител и маховик".into(),
+                findings: "Съединителят буксува на 3-та и 4-та предавка.".into(),
+                labor: vec![LaborLine { description: "Смяна на съединител и двумасов маховик".into(), hours: 6.5, rate: money("50"), ..Default::default() }],
+                parts: vec![PartLine { part: "Комплект съединител с маховик".into(), partNumber: "LuK 600 0151 00".into(), quantity: 1.0, unit: "к-т".into(), price: money("520") }],
+                ..Default::default()
+            },
+            ..Default::default()
+        })
+        .unwrap();
+    store
+        .save_quote(SaveInput {
+            data: Quote {
+                kind: DIAGNOSTIC_REPORT.into(),
+                carId: golf.id.clone(),
+                date: "2026-11-02".into(),
+                mileage: Some(203_400),
+                title: "Диагностика – светнала лампа за двигателя".into(),
+                findings: "Записана грешка за ефективност на DPF. Датчикът за диференциално налягане дава нереални стойности.".into(),
+                faultCodes: vec![FaultRow { code: "P2002".into(), text: "Филтър за твърди частици – ефективност под прага".into() }],
+                recommendations: "Смяна на датчика за налягане и принудителна регенерация.".into(),
+                ..Default::default()
+            },
+            ..Default::default()
+        })
+        .unwrap();
+
     println!("Готово: {dir}");
 }

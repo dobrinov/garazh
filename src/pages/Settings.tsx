@@ -2,8 +2,19 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { useEffect, useState } from "react";
 import { api, AppConfig, errorMessage, Loaded, Shop } from "../api";
 import { Icon, Loading, TextField, useToast } from "../components/ui";
+import { FEATURES, FeatureKey, resolveFeatures, toggle } from "../lib/features";
 
-export function Settings({ config, onConfig, onShopName }: { config: AppConfig; onConfig: (c: AppConfig) => void; onShopName: (n: string) => void }) {
+export function Settings({
+  config,
+  onConfig,
+  onShopName,
+  onFeatures,
+}: {
+  config: AppConfig;
+  onConfig: (c: AppConfig) => void;
+  onShopName: (n: string) => void;
+  onFeatures: (f: Record<string, boolean>) => void;
+}) {
   const toast = useToast();
   const [shop, setShop] = useState<Loaded<Shop> | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -27,6 +38,38 @@ export function Settings({ config, onConfig, onShopName }: { config: AppConfig; 
       setShop(saved);
       onShopName(saved.data.name);
       toast("Данните за сервиза са запазени");
+    } catch (e) {
+      toast(errorMessage(e), true);
+    }
+  }
+
+  async function setFeature(key: FeatureKey, on: boolean) {
+    if (!shop) return;
+    const features = toggle(shop.data.features ?? {}, key, on);
+    try {
+      // Save only the switches, on top of the file as it is on disk now.
+      const current = await api.getShop();
+      const saved = await api.saveShop({ data: { ...current.data, features }, notes: current.notes, baseHash: current.hash });
+      setShop({ ...shop, data: { ...shop.data, features: saved.data.features }, hash: saved.hash });
+      onFeatures(saved.data.features);
+    } catch (e) {
+      toast(errorMessage(e), true);
+    }
+  }
+
+  async function installReference(overwrite: boolean) {
+    if (overwrite && !window.confirm("Примерните файлове ще заменят тези със същото име, включително вашите промени в тях. Продължаване?")) return;
+    try {
+      const n = await api.installReference(overwrite);
+      toast(n ? `Записани файлове: ${n}` : "Всички примерни файлове вече са налице");
+    } catch (e) {
+      toast(errorMessage(e), true);
+    }
+  }
+
+  async function openReference(kind: "schedules" | "links") {
+    try {
+      await api.openPath(await api.referenceDir(kind));
     } catch (e) {
       toast(errorMessage(e), true);
     }
@@ -92,6 +135,45 @@ export function Settings({ config, onConfig, onShopName }: { config: AppConfig; 
         </div>
         <label className="check"><input type="checkbox" checked={s.vatRegistered} onChange={(e) => set("vatRegistered", e.target.checked)} />Регистриран по ДДС (начислява се ДДС в работните карти)</label>
         <div className="muted small">Следващ клиент №{s.counters.client + 1} · следваща работна карта №{s.counters.workOrder + 1}</div>
+      </section>
+
+      <section className="card pad" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <div>
+          <h2>Функции</h2>
+          <div className="muted small">Изключената функция скрива менютата и секциите си. Файловете ѝ остават в папката с данни.</div>
+        </div>
+        <div className="switches">
+          {FEATURES.map((f) => {
+            const on = resolveFeatures(s.features)[f.key];
+            return (
+              <label key={f.key} className={`switch-row ${f.later ? "later" : ""}`}>
+                <input type="checkbox" role="switch" checked={on} disabled={f.later} onChange={(e) => setFeature(f.key, e.target.checked)} />
+                <span>
+                  <strong>{f.label}</strong>
+                  {f.later && <span className="badge">скоро</span>}
+                  {f.online && <span className="badge warn">интернет</span>}
+                  <span className="small muted" style={{ display: "block" }}>{f.description}</span>
+                  {f.requires && <span className="small muted" style={{ display: "block" }}>Изисква: {f.requires.map((r) => FEATURES.find((x) => x.key === r)?.label).join(", ")}</span>}
+                </span>
+              </label>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="card pad" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <h2>Справочници</h2>
+        <div className="muted">
+          Графиците за поддръжка и полезните връзки са обикновени файлове в папка „справочници“. Програмата идва с
+          примерни графици за често срещани двигатели и кутии – <strong>те не са проверени</strong>. Сверете ги с данните на
+          производителя и във всеки проверен файл сменете <span className="mono">проверено: false</span> на <span className="mono">true</span>.
+        </div>
+        <div className="row">
+          <button className="btn" onClick={() => openReference("schedules")}><Icon name="folder" />Графици</button>
+          <button className="btn" onClick={() => openReference("links")}><Icon name="folder" />Полезни връзки</button>
+          <button className="btn" onClick={() => installReference(false)}>Добави липсващите примерни файлове</button>
+          <button className="btn danger" onClick={() => installReference(true)}>Възстанови примерните файлове</button>
+        </div>
       </section>
 
       <section className="card pad" style={{ display: "flex", flexDirection: "column", gap: 14 }}>

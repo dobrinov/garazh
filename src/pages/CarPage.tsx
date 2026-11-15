@@ -1,17 +1,41 @@
 import { FormEvent, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { api, CarDetail, errorMessage } from "../api";
+import { api, CarPage as CarData, errorMessage } from "../api";
+import { useFeatures } from "../components/features";
 import { Files } from "../components/Files";
+import { LinksCard } from "../components/Links";
+import { QuoteList } from "./Quotes";
+import { ScheduleTab } from "../components/Schedule";
 import { DeadlineBadge, Icon, Loading, Plate, StatusBadge, useLoad, useToast } from "../components/ui";
 import { date, euro, int, km, todayIso } from "../lib/format";
 
-type Tab = "usage" | "orders" | "parts" | "docs";
+type Tab = "usage" | "orders" | "parts" | "docs" | "schedule" | "quotes";
+type CarDetail = CarData;
 
 export function CarPage() {
   const { id = "" } = useParams();
   const { data, error, reload } = useLoad(() => api.getCar(id), [id]);
   const [tab, setTab] = useState<Tab>("orders");
+  const features = useFeatures();
+  const toast = useToast();
   if (!data) return <Loading error={error} />;
+  const due = data.schedule?.items.filter((i) => i.status === "просрочено" || i.status === "скоро").length ?? 0;
+  const tabs: [Tab, string][] = [
+    ["orders", `Ремонти (${data.orders.length})`],
+    ...(data.schedule ? [["schedule", `Поддръжка${due ? ` (${due})` : ""}`] as [Tab, string]] : []),
+    ["parts", `Части и консумативи (${data.parts.length})`],
+    ["usage", "Пробег и натоварване"],
+    ...(features.quotes ? [["quotes", `Оферти и доклади (${data.quotes.length})`] as [Tab, string]] : []),
+    ["docs", `Документи (${data.documents.length})`],
+  ];
+  const copy = async (text: string, what: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast(`${what} е копиран`);
+    } catch {
+      toast("Копирането не успя", true);
+    }
+  };
   const c = data.car.data;
 
   return (
@@ -32,6 +56,7 @@ export function CarPage() {
         <div className="row">
           <button className="btn" onClick={() => api.openPath(data.car.dir)}><Icon name="folder" />Отвори папката</button>
           <Link className="btn" to={`/cars/${id}/edit`}>Редактирай</Link>
+          {features.quotes && <Link className="btn" to={`/quotes/new?car=${id}&kind=оферта`}><Icon name="quote" />Оферта</Link>}
           <Link className="btn primary" to={`/orders/new?car=${id}`}><Icon name="plus" />Нова работна карта</Link>
         </div>
       </div>
@@ -39,7 +64,13 @@ export function CarPage() {
       <div className="cols">
         <section className="card pad wide" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <dl className="facts">
-            <div><dt>VIN</dt><dd className="mono">{c.vin || "—"}</dd></div>
+            <div>
+              <dt>VIN</dt>
+              <dd className="mono row" style={{ gap: 6 }}>
+                {c.vin || "—"}
+                {c.vin && <button className="btn small icon-btn" onClick={() => copy(c.vin, "VIN")} aria-label="Копирай VIN" title="Копирай VIN"><Icon name="copy" size={14} /></button>}
+              </dd>
+            </div>
             <div><dt>Двигател</dt><dd>{[c.engine, c.engineCode].filter(Boolean).join(" · ") || "—"}</dd></div>
             <div><dt>Скоростна кутия</dt><dd>{[c.gearbox, c.gearboxCode].filter(Boolean).join(" · ") || "—"}</dd></div>
             <div><dt>Текущ пробег</dt><dd><span className="mono">{km(data.usage.lastKm)}</span> <span className="muted small">{date(data.usage.lastDate)}</span></dd></div>
@@ -64,17 +95,31 @@ export function CarPage() {
               </div>
             ))}
           </div>
+          {features.links && <LinksCard links={data.links} car={c} onCopy={copy} />}
         </aside>
       </div>
 
       <div className="tabs" role="tablist">
-        {([["orders", `Ремонти (${data.orders.length})`], ["parts", `Части и консумативи (${data.parts.length})`], ["usage", "Пробег и натоварване"], ["docs", `Документи (${data.documents.length})`]] as [Tab, string][]).map(([t, label]) => (
+        {tabs.map(([t, label]) => (
           <button key={t} role="tab" aria-selected={tab === t} className={tab === t ? "on" : ""} onClick={() => setTab(t)}>{label}</button>
         ))}
       </div>
 
       {tab === "orders" && <OrdersTab data={data} />}
       {tab === "parts" && <PartsTab data={data} onChange={reload} />}
+      {tab === "schedule" && data.schedule && <ScheduleTab data={data} schedule={data.schedule} onChange={reload} />}
+      {tab === "quotes" && (
+        <section className="card">
+          <div className="card-head">
+            <h2>Оферти и доклади</h2>
+            <div className="row">
+              <Link className="btn small" to={`/quotes/new?car=${id}&kind=диагностика`}>+ Доклад от диагностика</Link>
+              <Link className="btn small primary" to={`/quotes/new?car=${id}&kind=оферта`}>+ Оферта</Link>
+            </div>
+          </div>
+          <QuoteList rows={data.quotes} showCar={false} />
+        </section>
+      )}
       {tab === "usage" && <UsageTab data={data} onChange={reload} />}
       {tab === "docs" && (
         <section className="card pad">

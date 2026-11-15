@@ -18,6 +18,10 @@ pub const ORDERS_DIR: &str = "ремонти";
 pub const ORDER_FILE: &str = "работна-карта.md";
 pub const DOCS_DIR: &str = "документи";
 pub const INDEX_DIR: &str = ".index";
+pub const QUOTES_DIR: &str = "оферти-и-доклади";
+pub const QUOTE_FILE: &str = "документ.md";
+pub const REFERENCE_DIR: &str = "справочници";
+pub const VIN_CACHE_DIR: &str = "vin-отговори";
 
 const MILEAGE_HEADER: [&str; 3] = ["Дата", "Км", "Източник"];
 const PARTS_HEADER: [&str; 7] = ["Дата", "Км", "Част", "Марка / кат. №", "К-во", "Цена", "РК"];
@@ -96,6 +100,7 @@ pub struct Scan {
     pub clients: Vec<Loaded<Client>>,
     pub cars: Vec<(Loaded<Car>, Vec<Reading>)>,
     pub orders: Vec<Loaded<WorkOrder>>,
+    pub quotes: Vec<Loaded<Quote>>,
     pub problems: Vec<Problem>,
 }
 
@@ -153,9 +158,15 @@ impl Store {
     /// Create the folder layout in an empty or existing folder. Never overwrites.
     pub fn init(&self) -> Result<()> {
         fs::create_dir_all(self.clients_dir())?;
-        fs::create_dir_all(self.root.join("справочници").join("марки"))?;
-        fs::create_dir_all(self.root.join("справочници").join("графици"))?;
         fs::create_dir_all(self.root.join(INDEX_DIR))?;
+        // Starter reference data goes in only when its folder has no files yet,
+        // so files the owner deleted on purpose do not come back.
+        for (dir, files) in [(self.schedules_dir(), crate::schedule::STARTER), (self.links_dir(), crate::links::STARTER)] {
+            let empty = fs::read_dir(&dir).map(|mut rd| rd.next().is_none()).unwrap_or(true);
+            if empty {
+                self.install_starter(&dir, files, false)?;
+            }
+        }
         let shop = self.root.join(SHOP_FILE);
         if !shop.exists() {
             let text = render_record(&Shop::default(), "# Настройки на сервиза\n\nТози файл пази данните за сервиза и броячите на номерата.")
@@ -167,6 +178,31 @@ impl Store {
             write_atomic(&readme, README)?;
         }
         Ok(())
+    }
+
+    pub fn schedules_dir(&self) -> PathBuf {
+        self.root.join(REFERENCE_DIR).join(crate::schedule::SCHEDULES_DIR)
+    }
+    pub fn links_dir(&self) -> PathBuf {
+        self.root.join(REFERENCE_DIR).join(crate::links::LINKS_DIR)
+    }
+    pub fn vin_cache_dir(&self) -> PathBuf {
+        self.root.join(REFERENCE_DIR).join(VIN_CACHE_DIR)
+    }
+
+    /// Write the shipped starter files into `dir`. Existing files are kept
+    /// unless `overwrite`. Returns how many files were written.
+    pub fn install_starter(&self, dir: &Path, files: &[(&str, &str)], overwrite: bool) -> Result<usize> {
+        fs::create_dir_all(dir)?;
+        let mut n = 0;
+        for (name, text) in files {
+            let p = dir.join(name);
+            if overwrite || !p.exists() {
+                write_atomic(&p, text)?;
+                n += 1;
+            }
+        }
+        Ok(n)
     }
 
     // ---------- shop ----------
@@ -186,6 +222,8 @@ impl Store {
         // Counters are owned by the app; never let the UI roll them back.
         data.counters.client = data.counters.client.max(current.data.counters.client);
         data.counters.workOrder = data.counters.workOrder.max(current.data.counters.workOrder);
+        data.counters.quote = data.counters.quote.max(current.data.counters.quote);
+        data.counters.report = data.counters.report.max(current.data.counters.report);
         self.write_record(&self.root.join(SHOP_FILE), &data, &input.notes, input.baseHash.as_deref())?;
         self.shop()
     }
@@ -282,6 +320,23 @@ impl Store {
                         Err(m) => s.problems.push(Problem { path: path_str(&ofile), message: m }),
                     }
                 }
+                for qdir in subdirs(&kdir.join(QUOTES_DIR)) {
+                    let qfile = qdir.join(QUOTE_FILE);
+                    if !qfile.exists() {
+                        continue;
+                    }
+                    match load::<Quote>(&qfile) {
+                        Ok((mut q, notes, h)) => {
+                            if q.id.is_empty() {
+                                q.id = format!("q-{}", &hash(&path_str(&qdir))[..10]);
+                            }
+                            q.carId = car.id.clone();
+                            q.clientId = client.data.id.clone();
+                            s.quotes.push(Loaded { data: q, notes, dir: path_str(&qdir), hash: h });
+                        }
+                        Err(m) => s.problems.push(Problem { path: path_str(&qfile), message: m }),
+                    }
+                }
                 s.cars.push((Loaded { data: car, notes, dir: path_str(&kdir), hash: h }, readings));
             }
             s.clients.push(client);
@@ -297,6 +352,14 @@ impl Store {
     }
     fn find_order(&self, scan: &Scan, id: &str) -> Result<Loaded<WorkOrder>> {
         scan.orders.iter().find(|o| o.data.id == id).cloned().ok_or_else(|| StoreError::NotFound(id.into()))
+    }
+
+    fn find_quote(&self, scan: &Scan, id: &str) -> Result<Loaded<Quote>> {
+        scan.quotes.iter().find(|q| q.data.id == id).cloned().ok_or_else(|| StoreError::NotFound(id.into()))
+    }
+    pub fn quote(&self, id: &str) -> Result<Loaded<Quote>> {
+        let scan = self.scan()?;
+        self.find_quote(&scan, id)
     }
 
     pub fn client(&self, id: &str) -> Result<Loaded<Client>> {
@@ -560,6 +623,93 @@ impl Store {
         self.reload(&dir, ORDER_FILE)
     }
 
+    // ---------- quotes and reports ----------
+
+    pub fn save_quote(&self, input: SaveInput<Quote>) -> Result<Loaded<Quote>> {
+        let mut data = input.data;
+        if ![QUOTE, REPAIR_REPORT, DIAGNOSTIC_REPORT].contains(&data.kind.as_str()) {
+            return Err(StoreError::Invalid(format!("Непознат вид документ: {}", data.kind)));
+        }
+        let scan = self.scan()?;
+        let car = self.find_car(&scan, &data.carId)?;
+        data.clientId = car.data.clientId.clone();
+        let parent = PathBuf::from(&car.dir).join(QUOTES_DIR);
+        if data.date.is_empty() {
+            data.date = today();
+        }
+        if data.status.is_empty() {
+            data.status = "чернова".into();
+        }
+        let dir = if data.id.is_empty() {
+            data.id = new_id("q");
+            let (prefix, n) = if data.kind == QUOTE {
+                ("ОФ", self.next_counter(|c| &mut c.quote)?)
+            } else {
+                ("ДК", self.next_counter(|c| &mut c.report)?)
+            };
+            data.number = format!("{prefix}-{}-{:04}", &data.date[..4.min(data.date.len())], n);
+            if data.vatPercent == 0 && data.kind == QUOTE {
+                let shop = self.shop()?;
+                if shop.data.vatRegistered {
+                    data.vatPercent = shop.data.vatPercent;
+                }
+            }
+            let dir = unique_dir(&parent, &names::order_folder(&data.date, &data.number, &data.title), None);
+            fs::create_dir_all(&dir)?;
+            dir
+        } else {
+            let current = self.find_quote(&scan, &data.id)?;
+            let cur_dir = PathBuf::from(&current.dir);
+            if let Some(base) = input.baseHash.as_deref() {
+                if base != current.hash {
+                    return Err(StoreError::Conflict(path_str(&cur_dir.join(QUOTE_FILE))));
+                }
+            }
+            data.number = current.data.number.clone();
+            data.kind = current.data.kind.clone();
+            let want = unique_dir(&parent, &names::order_folder(&data.date, &data.number, &data.title), Some(&cur_dir));
+            if want != cur_dir {
+                fs::rename(&cur_dir, &want)?;
+            }
+            want
+        };
+        self.write_record(&dir.join(QUOTE_FILE), &data, &input.notes, None)?;
+        self.reload(&dir, QUOTE_FILE)
+    }
+
+    /// The customer accepted a quote: open a work order with its lines and
+    /// link the two. Accepting twice returns the same work order.
+    pub fn accept_quote(&self, id: &str) -> Result<Loaded<WorkOrder>> {
+        let scan = self.scan()?;
+        let mut q = self.find_quote(&scan, id)?;
+        if q.data.kind != QUOTE {
+            return Err(StoreError::Invalid("Само оферта може да се приеме".into()));
+        }
+        if !q.data.orderId.is_empty() {
+            if let Ok(o) = self.find_order(&scan, &q.data.orderId) {
+                return Ok(o);
+            }
+        }
+        let order = self.save_order(SaveInput {
+            data: WorkOrder {
+                carId: q.data.carId.clone(),
+                title: q.data.title.clone(),
+                complaint: format!("По оферта {}", q.data.number),
+                labor: q.data.labor.clone(),
+                parts: q.data.parts.clone(),
+                discountPercent: q.data.discountPercent,
+                vatPercent: q.data.vatPercent,
+                ..Default::default()
+            },
+            ..Default::default()
+        })?;
+        q.data.status = "приета".into();
+        q.data.orderId = order.data.id.clone();
+        let dir = PathBuf::from(&q.dir);
+        self.write_record(&dir.join(QUOTE_FILE), &q.data, &q.notes, None)?;
+        Ok(order)
+    }
+
     // ---------- documents ----------
 
     pub fn car_docs_dir(&self, car_id: &str) -> Result<PathBuf> {
@@ -671,6 +821,11 @@ Notepad и Excel и да копирате документи директно в
     части.md       сменени части и консумативи\r\n\
     ремонти\\       по една папка за всеки ремонт с работната карта и файловете\r\n\
     документи\\     талон, ГТП и други документи\r\n\
+    оферти-и-доклади\\  оферти, доклади за ремонт и диагностика\r\n\
+    график-поддръжка.md  обслужвания, отбелязани ръчно\r\n\
+справочници\\графици\\   графици за поддръжка по двигател и кутия (редактируеми)\r\n\
+справочници\\марки\\     полезни връзки по марка (редактируеми)\r\n\
+справочници\\vin-отговори\\  запазени отговори от онлайн проверка на VIN\r\n\
 сервиз.md                                  данни за сервиза и броячи\r\n\
 .index\\                                    временни файлове, може да се изтрие\r\n\
 \r\n\
@@ -837,5 +992,53 @@ mod tests {
         assert_eq!(second[0].name, "Diagnostika (2).pdf");
         assert_eq!(fs::read(target.join("Diagnostika.pdf")).unwrap(), b"%PDF-1.4 test");
         assert_eq!(s.list_files(&target).len(), 2);
+    }
+
+    #[test]
+    fn init_installs_starter_reference_once() {
+        let (_d, s) = store();
+        let n = fs::read_dir(s.schedules_dir()).unwrap().count();
+        assert_eq!(n, crate::schedule::STARTER.len());
+        assert!(s.links_dir().join("общи.md").exists());
+        fs::remove_file(s.links_dir().join("bmw.md")).unwrap();
+        s.init().unwrap();
+        assert!(!s.links_dir().join("bmw.md").exists(), "a deleted file does not come back");
+    }
+
+    #[test]
+    fn quotes_are_numbered_and_accepting_opens_one_work_order() {
+        let (_d, s) = store();
+        let c = new_client(&s, "Иван");
+        let k = new_car(&s, &c.data.id, "СА 1111 АА");
+        let q = s
+            .save_quote(SaveInput {
+                data: Quote {
+                    kind: QUOTE.into(),
+                    carId: k.data.id.clone(),
+                    date: "2026-11-15".into(),
+                    title: "Съединител".into(),
+                    labor: vec![LaborLine { description: "Смяна на съединител".into(), hours: 6.0, rate: Money(5000), ..Default::default() }],
+                    ..Default::default()
+                },
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(q.data.number, "ОФ-2026-0001");
+        assert_eq!(q.data.status, "чернова");
+        assert!(q.dir.contains(QUOTES_DIR));
+        let text = read_text(&Path::new(&q.dir).join(QUOTE_FILE)).unwrap();
+        assert!(text.contains("вид: оферта"));
+        let r = s
+            .save_quote(SaveInput { data: Quote { kind: DIAGNOSTIC_REPORT.into(), carId: k.data.id.clone(), date: "2026-11-15".into(), ..Default::default() }, ..Default::default() })
+            .unwrap();
+        assert_eq!(r.data.number, "ДК-2026-0001");
+        let o1 = s.accept_quote(&q.data.id).unwrap();
+        let o2 = s.accept_quote(&q.data.id).unwrap();
+        assert_eq!(o1.data.id, o2.data.id);
+        assert_eq!(o1.data.labor.len(), 1);
+        let q2 = s.quote(&q.data.id).unwrap();
+        assert_eq!(q2.data.status, "приета");
+        assert_eq!(q2.data.orderId, o1.data.id);
+        assert!(s.accept_quote(&r.data.id).is_err(), "a report cannot be accepted");
     }
 }

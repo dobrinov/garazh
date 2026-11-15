@@ -1,4 +1,5 @@
 import { NavLink, Outlet } from "react-router-dom";
+import { useFeatures } from "./features";
 import { Icon } from "./ui";
 
 const NAV = [
@@ -6,9 +7,11 @@ const NAV = [
   { to: "/clients", label: "Клиенти", icon: "clients" },
   { to: "/cars", label: "Автомобили", icon: "car" },
   { to: "/orders", label: "Работни карти", icon: "order" },
+  { to: "/quotes", label: "Оферти и доклади", icon: "quote", feature: "quotes" as const },
 ];
 
 export function Layout({ shopName }: { shopName: string }) {
+  const features = useFeatures();
   return (
     <div className="app">
       <nav className="side" aria-label="Основна навигация">
@@ -21,7 +24,7 @@ export function Layout({ shopName }: { shopName: string }) {
             <div className="brand-sub">Управление на автосервиз</div>
           </div>
         </div>
-        {NAV.map((n) => (
+        {NAV.filter((n) => !("feature" in n) || !n.feature || features[n.feature]).map((n) => (
           <NavLink key={n.to} to={n.to} end={n.end}>
             <Icon name={n.icon} />
             {n.label}

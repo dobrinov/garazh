@@ -177,3 +177,18 @@ dl.facts dd { margin: 2px 0 0; font-weight: 600; }
   .sheet th { text-align: left; font-size: 10px; text-transform: uppercase; border-bottom: 1.5px solid #000; padding: 5px 6px; }
   .sheet td { border-bottom: 1px solid #ccc; padding: 6px; vertical-align: top; }
 }
+
+/* ---------- v1.0 ---------- */
+.switches { display: flex; flex-direction: column; gap: 4px; }
+.switch-row { display: flex; gap: 12px; align-items: flex-start; padding: 10px 4px; border-top: 1px solid var(--line); cursor: pointer; }
+.switch-row:first-child { border-top: 0; }
+.switch-row.later { opacity: .6; cursor: default; }
+.switch-row input { width: 38px; height: 22px; margin-top: 2px; accent-color: var(--accent); flex: none; }
+.switch-row .badge { margin-left: 8px; }
+.vin-aware { display: flex; flex-direction: column; gap: 2px; }
+.link-btn { background: none; border: 0; padding: 0; color: var(--link); cursor: pointer; text-align: left; font: inherit; }
+.link-btn:hover { text-decoration: underline; }
+.link-row { display: flex; gap: 8px; align-items: flex-start; text-align: left; background: none; border: 0; padding: 6px 4px; border-radius: 8px; cursor: pointer; color: var(--ink); font: inherit; }
+.link-row:hover { background: var(--ground); }
+.link-row svg { margin-top: 3px; color: var(--link); flex: none; }
+.link-name { font-weight: 600; }

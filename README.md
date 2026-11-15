@@ -5,7 +5,7 @@ All data is kept as plain folders and Markdown files that can be browsed in
 Explorer and edited in Notepad. See the technical plan and design canvas for
 the full picture.
 
-## What the MVP does
+## What it does
 
 - Clients (private and company), with search and filters
 - Cars per client: details, deadlines (ГТП, ГО, vignette), notes; search by
@@ -23,8 +23,33 @@ the full picture.
 - Files edited outside the app are picked up when the window regains focus;
   saving over a file changed meanwhile is refused instead of overwriting it
 
-Planned for version 1.0: maintenance schedule, VIN decode, quotes and reports,
-useful links per make, fault codes from PDFs, feature switches.
+Version 1.0 adds:
+
+- **Feature switches** in Settings (stored in `сервиз.md` under `функции`);
+  a switched-off feature hides its menus and sections and keeps its files
+- **VIN decoding**: make, model (VW group) and model year offline from the
+  VIN; optional online lookup through NHTSA vPIC (switched off by default,
+  sends only the VIN, answers cached in `справочници\vin-отговори\`).
+  Fields filled from the VIN are listed under `от_vin:`; typing over one moves
+  it to `ръчно:` and later lookups leave it alone
+- **Maintenance schedule**: interval files in `справочници\графици\`, picked
+  by engine and gearbox code (or chosen by hand per car); last done is found
+  in `части.md` and the work orders' labour lines; next due by km (forecast
+  from the car's usage) or time, whichever comes first. Operations done
+  elsewhere are marked in the car's `график-поддръжка.md`. Due and overdue
+  items are listed on the dashboard
+- **Starter schedules for 22 engine and gearbox families. They are not
+  checked**: every file has `проверено: false` until the owner verifies it
+  against the manufacturer's data
+- **Quotes and reports**: quotes (ОФ-…), repair reports and diagnostic
+  reports (ДК-…) in the car's `оферти-и-доклади\` folder; print or save as
+  PDF; accepting a quote opens a work order with its lines
+- **Useful links** per make in `справочници\марки\`, with `{VIN}`,
+  `{КОД_ДВИГАТЕЛ}` and other placeholders filled from the car
+- **Fault codes** read from the text layer of diagnostic PDFs (P/B/C/U + 4)
+
+Not done yet from the plan's version 1.0: code signing and automatic updates
+(both need a certificate and signing keys first).
 
 ## Data folder
 
@@ -40,10 +65,18 @@ useful links per make, fault codes from PDFs, feature switches.
         пробег.md                    odometer readings (table)
         части.md                     parts and consumables fitted (table)
         документи\                   uploaded files, as uploaded
+        график-поддръжка.md          maintenance done elsewhere (table)
+        оферти-и-доклади\
+          2026-11-10 ОФ-2026-0001 Съединител\
+            документ.md
         ремонти\
           2026-03-14 РК-2026-0004 Обслужване\
             работна-карта.md
             Diagnostika.pdf
+  справочници\
+    графици\                         maintenance intervals, editable
+    марки\                           useful links per make, editable
+    vin-отговори\                    cached online VIN answers
   .index\                            disposable, safe to delete
 ```
 
@@ -56,10 +89,15 @@ Requirements: Node 20+, pnpm, Rust (stable).
 
 ```sh
 pnpm install
-pnpm tauri dev          # run the app
+pnpm tauri dev          # run the app (starts Vite and the window)
 pnpm test               # UI tests
 cd src-tauri && cargo test   # core tests (file store, money, usage, backup)
 ```
+
+`cargo run` on its own opens a white window: in development the window loads
+the screens from the Vite dev server (`http://localhost:1420`), which
+`pnpm tauri dev` starts for you. If you want `cargo run`, keep `pnpm dev`
+running in another terminal.
 
 Sample data to try the app with:
 
@@ -91,6 +129,11 @@ certificate so Windows SmartScreen does not block it.
 | `src-tauri/src/views.rs` | Summaries for lists and the dashboard |
 | `src-tauri/src/usage.rs` | Mileage usage and forecasts |
 | `src-tauri/src/backup.rs` | ZIP backups |
+| `src-tauri/src/vin.rs` | VIN decoding (local tables, NHTSA vPIC) |
+| `src-tauri/src/schedule.rs` | Maintenance schedule: files, matching, due dates |
+| `src-tauri/src/links.rs` | Useful links per make |
+| `src-tauri/src/faultcodes.rs` | Fault codes from PDF text |
+| `src-tauri/resources/` | Starter schedules and links copied into new data folders |
 | `src-tauri/src/commands.rs` | Tauri commands (the UI's only way to the disk) |
 | `src/api.ts` | Typed command wrappers |
 | `src/pages/*` | Screens |

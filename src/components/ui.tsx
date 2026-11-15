@@ -19,6 +19,11 @@ const PATHS: Record<string, string> = {
   check: "M5 12l5 5 9-11",
   wrench: "M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z",
   back: "M15 18l-6-6 6-6",
+  quote: "M7 3h7l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM14 3v5h5M9 13h6M9 17h4",
+  link: "M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1",
+  copy: "M9 9h11v11H9zM5 15H4V4h11v1",
+  calendar: "M4 6h16v14H4zM4 10h16M8 3v4M16 3v4",
+  scan: "M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3M7 12h10",
 };
 
 export function Icon({ name, size = 18, color = "currentColor", width = 2 }: { name: string; size?: number; color?: string; width?: number }) {

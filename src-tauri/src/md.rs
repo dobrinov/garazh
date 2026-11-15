@@ -76,6 +76,22 @@ const KEYS: &[(&str, &str)] = &[
     ("paid", "платено"),
     ("closedOn", "приключена"),
     ("historyWritten", "записана_в_историята"),
+    ("vinFields", "от_vin"),
+    ("schedules", "графици"),
+    ("makes", "марки"),
+    ("engines", "двигатели"),
+    ("gearboxes", "кутии"),
+    ("source", "източник"),
+    ("verified", "проверено"),
+    ("quote", "оферта"),
+    ("report", "доклад"),
+    ("orderId", "рк_id"),
+    ("validUntil", "валидна_до"),
+    ("findings", "констатации"),
+    ("recommendations", "препоръки"),
+    ("faultCodes", "кодове_грешки"),
+    ("code", "код"),
+    ("text", "текст"),
 ];
 
 fn to_file_key(k: &str) -> Option<&'static str> {
