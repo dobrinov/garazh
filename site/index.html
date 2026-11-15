@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="bg">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Гараж – програма за автосервиз</title>
+<meta name="description" content="Програма за Windows за малки автосервизи: клиенти, автомобили, работни карти, сменени части с пробег, диагностика и график за поддръжка. Данните остават в папки на вашия компютър.">
+<meta property="og:title" content="Гараж – програма за автосервиз">
+<meta property="og:description" content="Цялата история на всяка кола – на едно място. Изтеглете за Windows.">
+<meta property="og:type" content="website">
+<meta name="theme-color" content="#c2410c">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="icon" href="favicon.png" type="image/png" sizes="64x64">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Manrope:wght@700;800&amp;family=Roboto+Condensed:wght@600&amp;display=swap" rel="stylesheet">
+<style>
+body { margin: 0; background: #f3f3ef; }
+a { color: #1e4fd8; } a:hover { color: #163b9f; }
+a:focus-visible { outline: 3px solid #fdba8c; outline-offset: 3px; border-radius: 6px; }
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+/* Phones: smaller headings, the app preview drops its side menu. */
+@media (max-width: 640px) {
+  h1 { font-size: 38px !important; }
+  h2 { font-size: 30px !important; }
+  .preview-side { display: none !important; }
+  .nav-link { display: none !important; }
+}
+</style>
+</head>
+<body>
+<div style="font-family: Inter, 'Segoe UI', system-ui, sans-serif; color: #15171c; background: #f3f3ef; min-height: 100vh">
+
+  <!-- Top bar -->
+  <header style="max-width: 1200px; margin: 0 auto; padding: 20px 24px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap">
+    <a href="#top" style="display: flex; align-items: center; gap: 12px; text-decoration: none; color: #15171c">
+      <svg width="40" height="40" viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="#c2410c"></rect><path d="M32 15.5 L49.5 27.5 V48.5 H14.5 V27.5 Z" fill="#fff" stroke="#fff" stroke-width="3" stroke-linejoin="round"></path><rect x="21" y="32" width="22" height="17" rx="1.5" fill="#9a2d08"></rect><rect x="23" y="35" width="18" height="1.6" rx="0.8" fill="#fff"></rect><rect x="23" y="39" width="18" height="1.6" rx="0.8" fill="#fff"></rect><rect x="23" y="43" width="18" height="1.6" rx="0.8" fill="#fff"></rect></svg>
+      <span style="font-family: Manrope, Inter, sans-serif; font-weight: 800; font-size: 22px">Гараж</span>
+    </a>
+    <nav aria-label="Основна навигация" style="display: flex; align-items: center; gap: 24px; flex-wrap: wrap; font-size: 15px; font-weight: 500">
+      <a class="nav-link" href="#vazmozhnosti" style="color: #3b404c; text-decoration: none">Възможности</a>
+      <a class="nav-link" href="#danni" style="color: #3b404c; text-decoration: none">Вашите данни</a>
+      <a class="nav-link" href="#instalirane" style="color: #3b404c; text-decoration: none">Инсталиране</a>
+      <a href="https://github.com/dobrinov/garazh/releases/latest" style="display: inline-flex; align-items: center; min-height: 44px; padding: 0 18px; border-radius: 10px; background: #15171c; color: #fff; text-decoration: none; font-weight: 600">Изтегли</a>
+    </nav>
+  </header>
+
+  <!-- Hero -->
+  <section id="top" style="max-width: 1200px; margin: 0 auto; padding: 48px 24px 72px; display: flex; flex-wrap: wrap; gap: 56px; align-items: center">
+    <div style="flex: 1 1 420px; min-width: 0; display: flex; flex-direction: column; gap: 24px">
+      <span style="align-self: flex-start; font-size: 14px; font-weight: 600; color: #9a3412; background: #fff1e8; padding: 6px 12px; border-radius: 999px">За малки автосервизи · на български</span>
+      <h1 style="margin: 0; font-family: Manrope, Inter, sans-serif; font-weight: 800; font-size: 56px; line-height: 1.05; letter-spacing: -0.02em">Цялата история на всяка кола – на едно място</h1>
+      <p style="margin: 0; font-size: 19px; line-height: 1.6; color: #3b404c; max-width: 560px">Клиенти, автомобили, работни карти, сменени части и консумативи с пробега им, диагностични PDF файлове и график за поддръжка. Програма за Windows, която пази всичко в обикновени папки на вашия компютър.</p>
+      <div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center">
+        <a href="https://github.com/dobrinov/garazh/releases/latest" style="display: inline-flex; align-items: center; gap: 10px; min-height: 56px; padding: 0 26px; border-radius: 12px; background: #c2410c; color: #fff; text-decoration: none; font-weight: 700; font-size: 17px">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v12M7 11l5 5 5-5M4 20h16"></path></svg>
+          Изтегли за Windows
+        </a>
+        <a href="https://github.com/dobrinov/garazh/releases" style="display: inline-flex; align-items: center; min-height: 56px; padding: 0 20px; border-radius: 12px; border: 1px solid #d6d6cf; background: #fff; color: #15171c; text-decoration: none; font-weight: 600">Всички версии</a>
+      </div>
+      <p style="margin: 0; font-size: 14px; color: #5a6070">Windows 10 и 11 · инсталира се без администраторски права · обновява се сама</p>
+    </div>
+
+    <!-- App preview, drawn from the real screens -->
+    <div role="img" aria-label="Таблото на програмата: коли в сервиза и предстоящо обслужване" style="flex: 1 1 520px; min-width: 0; border-radius: 16px; overflow: hidden; background: #fff; border: 1px solid #e2e2dc; box-shadow: 0 24px 60px rgba(21, 23, 28, 0.14); display: flex">
+      <div class="preview-side" style="width: 150px; flex: none; background: #15171c; padding: 16px 10px; display: flex; flex-direction: column; gap: 6px">
+        <div style="display: flex; align-items: center; gap: 8px; padding: 0 6px 12px">
+          <div style="width: 26px; height: 26px; border-radius: 7px; background: #c2410c"></div>
+          <div style="color: #fff; font-weight: 700; font-size: 12px; line-height: 1.2">Автосервиз Петров</div>
+        </div>
+        <div style="color: #fff; background: #262a33; border-radius: 8px; padding: 8px 10px; font-size: 12px; font-weight: 600">Табло</div>
+        <div style="color: #c9ccd3; padding: 8px 10px; font-size: 12px">Клиенти</div>
+        <div style="color: #c9ccd3; padding: 8px 10px; font-size: 12px">Автомобили</div>
+        <div style="color: #c9ccd3; padding: 8px 10px; font-size: 12px">Работни карти</div>
+        <div style="color: #c9ccd3; padding: 8px 10px; font-size: 12px">Оферти и доклади</div>
+      </div>
+      <div style="flex: 1; min-width: 0; padding: 18px; background: #f3f3ef; display: flex; flex-direction: column; gap: 12px">
+        <div style="font-family: Manrope, Inter, sans-serif; font-weight: 800; font-size: 18px">Табло</div>
+        <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px">
+          <div style="background: #fff; border-radius: 10px; padding: 10px; border: 1px solid #e2e2dc"><div style="font-size: 10px; color: #5a6070">В сервиза сега</div><div style="font-weight: 700; font-size: 18px">3</div></div>
+          <div style="background: #fff; border-radius: 10px; padding: 10px; border: 1px solid #e2e2dc"><div style="font-size: 10px; color: #5a6070">Срокове до 30 дни</div><div style="font-weight: 700; font-size: 18px">2</div></div>
+          <div style="background: #fff; border-radius: 10px; padding: 10px; border: 1px solid #e2e2dc"><div style="font-size: 10px; color: #5a6070">Предстоящо обслужване</div><div style="font-weight: 700; font-size: 18px">4</div></div>
+        </div>
+        <div style="background: #fff; border-radius: 10px; border: 1px solid #e2e2dc; padding: 6px 12px">
+          
+            <div style="display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid #eeeee9">
+              <span style="display: inline-flex; border: 1.5px solid #111; border-radius: 3px; overflow: hidden; font-family: 'Roboto Condensed', 'Arial Narrow', Arial, sans-serif; font-weight: 600; font-size: 11px; letter-spacing: 0.04em; flex: none"><span style="width: 6px; background: #003399"></span><span style="padding: 3px 5px; background: #fff">СА 4821 КН</span></span>
+              <span style="flex: 1; min-width: 0; font-size: 12px"><strong>VW Golf VII</strong><span style="color: #5a6070"> · Диагностика P2002</span></span>
+              <span style="font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 999px; background: #e6edfd; color: #1e40af; flex: none">В ремонт</span>
+            </div>
+          
+            <div style="display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid #eeeee9">
+              <span style="display: inline-flex; border: 1.5px solid #111; border-radius: 3px; overflow: hidden; font-family: 'Roboto Condensed', 'Arial Narrow', Arial, sans-serif; font-weight: 600; font-size: 11px; letter-spacing: 0.04em; flex: none"><span style="width: 6px; background: #003399"></span><span style="padding: 3px 5px; background: #fff">СВ 7710 АР</span></span>
+              <span style="flex: 1; min-width: 0; font-size: 12px"><strong>Škoda Octavia</strong><span style="color: #5a6070"> · Масло и филтри</span></span>
+              <span style="font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 999px; background: #fdecec; color: #b91c1c; flex: none">Просрочено</span>
+            </div>
+          
+            <div style="display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid #eeeee9">
+              <span style="display: inline-flex; border: 1.5px solid #111; border-radius: 3px; overflow: hidden; font-family: 'Roboto Condensed', 'Arial Narrow', Arial, sans-serif; font-weight: 600; font-size: 11px; letter-spacing: 0.04em; flex: none"><span style="width: 6px; background: #003399"></span><span style="padding: 3px 5px; background: #fff">РВ 2045 ТМ</span></span>
+              <span style="flex: 1; min-width: 0; font-size: 12px"><strong>BMW 320d</strong><span style="color: #5a6070"> · ГТП след 18 дни</span></span>
+              <span style="font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 999px; background: #fef3c7; color: #92400e; flex: none">Скоро</span>
+            </div>
+          
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section id="vazmozhnosti" style="background: #fff; border-top: 1px solid #e2e2dc; border-bottom: 1px solid #e2e2dc">
+    <div style="max-width: 1200px; margin: 0 auto; padding: 80px 24px; display: flex; flex-direction: column; gap: 40px">
+      <div style="max-width: 680px; display: flex; flex-direction: column; gap: 12px">
+        <h2 style="margin: 0; font-family: Manrope, Inter, sans-serif; font-weight: 800; font-size: 40px; letter-spacing: -0.01em">Всичко, което сервизът записва на хартия</h2>
+        <p style="margin: 0; font-size: 18px; line-height: 1.6; color: #3b404c">Направено за собственика на малък сервиз, не за счетоводител. Включвате само функциите, които ви трябват.</p>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px">
+        
+          <div style="border: 1px solid #e2e2dc; border-radius: 14px; padding: 24px; display: flex; flex-direction: column; gap: 12px; background: #fbfbf9">
+            <div style="width: 44px; height: 44px; border-radius: 11px; background: #fff1e8; display: grid; place-items: center; color: #c2410c">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM2 21c0-4 3-6 7-6s7 2 7 6M16 4a4 4 0 0 1 0 8M22 21c0-3-2-5-4-5.5"></path></svg>
+            </div>
+            <h3 style="margin: 0; font-size: 19px; font-weight: 700">Клиенти и автомобили</h3>
+            <p style="margin: 0; font-size: 15px; line-height: 1.6; color: #3b404c">Един клиент с много коли, търсене по рег. номер на латиница или кирилица, по VIN или по марка и модел.</p>
+          </div>
+        
+          <div style="border: 1px solid #e2e2dc; border-radius: 14px; padding: 24px; display: flex; flex-direction: column; gap: 12px; background: #fbfbf9">
+            <div style="width: 44px; height: 44px; border-radius: 11px; background: #fff1e8; display: grid; place-items: center; color: #c2410c">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 4h10a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM9 4V3h6v1M9 10h6M9 14h6M9 18h3"></path></svg>
+            </div>
+            <h3 style="margin: 0; font-size: 19px; font-weight: 700">Работни карти</h3>
+            <p style="margin: 0; font-size: 15px; line-height: 1.6; color: #3b404c">Приемане с пробег, труд и части, отстъпка и ДДС, печат или PDF. При приключване частите влизат в историята на колата.</p>
+          </div>
+        
+          <div style="border: 1px solid #e2e2dc; border-radius: 14px; padding: 24px; display: flex; flex-direction: column; gap: 12px; background: #fbfbf9">
+            <div style="width: 44px; height: 44px; border-radius: 11px; background: #fff1e8; display: grid; place-items: center; color: #c2410c">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z"></path></svg>
+            </div>
+            <h3 style="margin: 0; font-size: 19px; font-weight: 700">Части и консумативи</h3>
+            <p style="margin: 0; font-size: 15px; line-height: 1.6; color: #3b404c">Какво е сменено, на кой пробег и кога – за всяка кола, без да ровите в стари тетрадки.</p>
+          </div>
+        
+          <div style="border: 1px solid #e2e2dc; border-radius: 14px; padding: 24px; display: flex; flex-direction: column; gap: 12px; background: #fbfbf9">
+            <div style="width: 44px; height: 44px; border-radius: 11px; background: #fff1e8; display: grid; place-items: center; color: #c2410c">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16v14H4zM4 10h16M8 3v4M16 3v4"></path></svg>
+            </div>
+            <h3 style="margin: 0; font-size: 19px; font-weight: 700">График за поддръжка</h3>
+            <p style="margin: 0; font-size: 15px; line-height: 1.6; color: #3b404c">Интервали по двигател и скоростна кутия. Кога предстои следващото обслужване, според това колко се кара колата.</p>
+          </div>
+        
+          <div style="border: 1px solid #e2e2dc; border-radius: 14px; padding: 24px; display: flex; flex-direction: column; gap: 12px; background: #fbfbf9">
+            <div style="width: 44px; height: 44px; border-radius: 11px; background: #fff1e8; display: grid; place-items: center; color: #c2410c">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3h7l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM14 3v5h5M9 13h6M9 17h4"></path></svg>
+            </div>
+            <h3 style="margin: 0; font-size: 19px; font-weight: 700">Оферти и доклади</h3>
+            <p style="margin: 0; font-size: 15px; line-height: 1.6; color: #3b404c">Оферта за ремонт, доклад за извършена работа и за диагностика. Приетата оферта става работна карта с едно щракване.</p>
+          </div>
+        
+          <div style="border: 1px solid #e2e2dc; border-radius: 14px; padding: 24px; display: flex; flex-direction: column; gap: 12px; background: #fbfbf9">
+            <div style="width: 44px; height: 44px; border-radius: 11px; background: #fff1e8; display: grid; place-items: center; color: #c2410c">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3M7 12h10"></path></svg>
+            </div>
+            <h3 style="margin: 0; font-size: 19px; font-weight: 700">Диагностика и VIN</h3>
+            <p style="margin: 0; font-size: 15px; line-height: 1.6; color: #3b404c">Качете PDF от уреда – програмата прочита кодовете за грешки. Марка, модел и година се попълват от VIN.</p>
+          </div>
+        
+      </div>
+    </div>
+  </section>
+
+  <!-- Data -->
+  <section id="danni" style="max-width: 1200px; margin: 0 auto; padding: 80px 24px; display: flex; flex-wrap: wrap; gap: 48px; align-items: center">
+    <div style="flex: 1 1 420px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+      <h2 style="margin: 0; font-family: Manrope, Inter, sans-serif; font-weight: 800; font-size: 40px; letter-spacing: -0.01em">Данните са ваши – и се четат и без програмата</h2>
+      <p style="margin: 0; font-size: 18px; line-height: 1.6; color: #3b404c">Няма облак и абонамент за данните. Всеки клиент, кола и ремонт е папка, а всеки запис е текстов файл, който се отваря с Notepad. Качените документи стоят в оригиналния си вид.</p>
+      <ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; font-size: 16px; color: #3b404c">
+        <li style="display: flex; gap: 10px"><span style="color: #c2410c; font-weight: 700">✓</span>Ежедневно резервно копие като ZIP на друг диск или USB</li>
+        <li style="display: flex; gap: 10px"><span style="color: #c2410c; font-weight: 700">✓</span>Работи и без интернет</li>
+        <li style="display: flex; gap: 10px"><span style="color: #c2410c; font-weight: 700">✓</span>Папката може да е в OneDrive за още едно копие</li>
+      </ul>
+    </div>
+    <div style="flex: 1 1 460px; min-width: 0; background: #15171c; color: #e6e7ea; border-radius: 16px; padding: 28px; font-family: 'Cascadia Mono', Consolas, ui-monospace, monospace; font-size: 14px; line-height: 1.9; overflow-x: auto">
+      <div style="color: #9ea3ae">D:\Сервиз\Данни\</div>
+      <div>&#160;&#160;клиенти\</div>
+      <div>&#160;&#160;&#160;&#160;0001 Иван Петров\</div>
+      <div>&#160;&#160;&#160;&#160;&#160;&#160;СА4821КН Volkswagen Golf VII\</div>
+      <div>&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;<span style="color: #fdba8c">автомобил.md</span></div>
+      <div>&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;<span style="color: #fdba8c">пробег.md</span></div>
+      <div>&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;<span style="color: #fdba8c">части.md</span></div>
+      <div>&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;ремонти\2026-03-14 РК-2026-0004\</div>
+      <div>&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;<span style="color: #fdba8c">работна-карта.md</span></div>
+      <div>&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;Diagnostika.pdf</div>
+    </div>
+  </section>
+
+  <!-- Install -->
+  <section id="instalirane" style="background: #fff; border-top: 1px solid #e2e2dc">
+    <div style="max-width: 1200px; margin: 0 auto; padding: 80px 24px; display: flex; flex-direction: column; gap: 36px">
+      <h2 style="margin: 0; font-family: Manrope, Inter, sans-serif; font-weight: 800; font-size: 40px; letter-spacing: -0.01em">Инсталиране за няколко минути</h2>
+      <ol style="margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px">
+        <li style="display: flex; flex-direction: column; gap: 10px">
+          <span style="width: 40px; height: 40px; border-radius: 999px; background: #15171c; color: #fff; display: grid; place-items: center; font-weight: 700">1</span>
+          <h3 style="margin: 0; font-size: 19px; font-weight: 700">Изтеглете</h3>
+          <p style="margin: 0; font-size: 15px; line-height: 1.6; color: #3b404c">Изберете файла, завършващ на <span style="font-family: Consolas, ui-monospace, monospace">-setup.exe</span>, от страницата на последната версия.</p>
+        </li>
+        <li style="display: flex; flex-direction: column; gap: 10px">
+          <span style="width: 40px; height: 40px; border-radius: 999px; background: #15171c; color: #fff; display: grid; place-items: center; font-weight: 700">2</span>
+          <h3 style="margin: 0; font-size: 19px; font-weight: 700">Инсталирайте</h3>
+          <p style="margin: 0; font-size: 15px; line-height: 1.6; color: #3b404c">Ако Windows покаже „Windows защити компютъра ви“, изберете „Повече информация“ и после „Изпълни въпреки това“.</p>
+        </li>
+        <li style="display: flex; flex-direction: column; gap: 10px">
+          <span style="width: 40px; height: 40px; border-radius: 999px; background: #15171c; color: #fff; display: grid; place-items: center; font-weight: 700">3</span>
+          <h3 style="margin: 0; font-size: 19px; font-weight: 700">Настройте сервиза</h3>
+          <p style="margin: 0; font-size: 15px; line-height: 1.6; color: #3b404c">Изберете папка за данните, въведете името на сервиза и добавете лого. Следващите версии се инсталират сами.</p>
+        </li>
+      </ol>
+      <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify-content: space-between; padding: 28px; border-radius: 16px; background: #15171c">
+        <div style="display: flex; flex-direction: column; gap: 4px">
+          <div style="color: #fff; font-family: Manrope, Inter, sans-serif; font-weight: 800; font-size: 24px">Готови ли сте?</div>
+          <div style="color: #c9ccd3; font-size: 15px">Windows 10 и 11 · без администраторски права</div>
+        </div>
+        <a href="https://github.com/dobrinov/garazh/releases/latest" style="display: inline-flex; align-items: center; gap: 10px; min-height: 56px; padding: 0 26px; border-radius: 12px; background: #c2410c; color: #fff; text-decoration: none; font-weight: 700; font-size: 17px">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v12M7 11l5 5 5-5M4 20h16"></path></svg>
+          Изтегли за Windows
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <footer style="max-width: 1200px; margin: 0 auto; padding: 28px 24px 40px; display: flex; flex-wrap: wrap; gap: 16px; justify-content: space-between; font-size: 14px; color: #5a6070">
+    <span>Гараж – програма за управление на автосервиз</span>
+    <a href="https://github.com/dobrinov/garazh">Изходен код в GitHub</a>
+  </footer>
+</div>
+</body>
+</html>

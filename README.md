@@ -153,6 +153,13 @@ Before giving the installer to anyone, also sign it with a Windows
 code-signing certificate so SmartScreen does not block it. That is separate
 from the update key above.
 
+## Website
+
+`site/` is the download page (plain HTML, no build step). The **Website**
+workflow publishes it to GitHub Pages at https://dobrinov.github.io/garazh/
+whenever `site/` changes on `main`. Its download buttons point at the latest
+GitHub release, so the page needs no change for new versions.
+
 ## Code map
 
 | Path | What |
