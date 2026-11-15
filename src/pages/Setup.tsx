@@ -1,6 +1,7 @@
 import { open } from "@tauri-apps/plugin-dialog";
 import { useState } from "react";
 import { api, AppConfig, errorMessage } from "../api";
+import { BrandMark } from "../components/brand";
 import { LogoPicker } from "../components/LogoPicker";
 import { Icon } from "../components/ui";
 
@@ -56,8 +57,8 @@ export function Setup({ onDone }: { onDone: (c: AppConfig) => void }) {
       <div className="card pad" style={{ maxWidth: 660, width: "100%", display: "flex", flexDirection: "column", gap: 16 }}>
         <div className="row" style={{ justifyContent: "space-between" }}>
           <div className="row">
-            {step === 2 && logo ? <img className="brand-logo" src={logo} alt="" /> : <div className="brand-mark"><Icon name="wrench" color="#fff" size={20} /></div>}
-            <h1>{step === 1 ? "Добре дошли" : "Вашият сервиз"}</h1>
+            {step === 2 && logo ? <BrandMark logo={logo} /> : <div className="brand-mark"><Icon name="wrench" color="#fff" size={20} /></div>}
+            <h1>{step === 1 ? "Добре дошли в Гараж" : "Вашият сервиз"}</h1>
           </div>
           <span className="muted small">Стъпка {step} от 2</span>
         </div>

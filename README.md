@@ -1,4 +1,4 @@
-# Автосервиз
+# Гараж
 
 Desktop app for a small car repair shop, in Bulgarian, for Windows 10 and 11.
 All data is kept as plain folders and Markdown files that can be browsed in

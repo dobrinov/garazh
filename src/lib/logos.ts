@@ -18,9 +18,13 @@ export interface LogoPreset {
   svg: (shopName: string) => string;
 }
 
-function badge(icon: string, bg: string, round: boolean): string {
-  const shape = round ? `<circle cx="32" cy="32" r="32" fill="${bg}"/>` : `<rect width="64" height="64" rx="14" fill="${bg}"/>`;
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="256" height="256">${shape}<g transform="translate(12.8 12.8) scale(1.6)" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${ICONS[icon]}"/></g></svg>`;
+/** Marks a built-in logo, so it is shown as a tile without a white backing. */
+export const PRESET_MARK = 'data-garazh-preset="1"';
+const OPEN = `<svg xmlns="http://www.w3.org/2000/svg" ${PRESET_MARK} viewBox="0 0 64 64" width="256" height="256">`;
+
+function badge(icon: string, bg: string): string {
+  const shape = `<rect width="64" height="64" rx="14" fill="${bg}"/>`;
+  return `${OPEN}${shape}<g transform="translate(12.8 12.8) scale(1.6)" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${ICONS[icon]}"/></g></svg>`;
 }
 
 /** Up to two initials: "Автосервиз Петров" → "АП", "Мото-Хаус" → "МХ". */
@@ -39,16 +43,27 @@ export const LOGO_PRESETS: LogoPreset[] = [
     id: "monogram",
     label: "Инициали",
     svg: (name) =>
-      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="256" height="256"><rect width="64" height="64" rx="14" fill="#c2410c"/><text x="32" y="33" text-anchor="middle" dominant-baseline="central" font-family="Segoe UI, Arial, sans-serif" font-weight="800" font-size="${initials(name).length > 1 ? 26 : 32}" fill="#fff">${escapeXml(initials(name))}</text></svg>`,
+      `${OPEN}<rect width="64" height="64" rx="14" fill="#c2410c"/><text x="32" y="33" text-anchor="middle" dominant-baseline="central" font-family="Segoe UI, Arial, sans-serif" font-weight="800" font-size="${initials(name).length > 1 ? 26 : 32}" fill="#fff">${escapeXml(initials(name))}</text></svg>`,
   },
-  { id: "wrench", label: "Гаечен ключ", svg: () => badge("wrench", "#c2410c", false) },
-  { id: "car", label: "Автомобил", svg: () => badge("car", "#15171c", true) },
-  { id: "wheel", label: "Колело", svg: () => badge("wheel", "#1e40af", false) },
-  { id: "piston", label: "Бутало", svg: () => badge("piston", "#3b404c", false) },
-  { id: "gear", label: "Зъбно колело", svg: () => badge("gear", "#166534", true) },
-  { id: "plug", label: "Запалителна свещ", svg: () => badge("plug", "#c2410c", true) },
-  { id: "drop", label: "Масло", svg: () => badge("drop", "#15171c", false) },
+  { id: "wrench", label: "Гаечен ключ", svg: () => badge("wrench", "#c2410c") },
+  { id: "car", label: "Автомобил", svg: () => badge("car", "#15171c") },
+  { id: "wheel", label: "Колело", svg: () => badge("wheel", "#1e40af") },
+  { id: "piston", label: "Бутало", svg: () => badge("piston", "#3b404c") },
+  { id: "gear", label: "Зъбно колело", svg: () => badge("gear", "#166534") },
+  { id: "plug", label: "Запалителна свещ", svg: () => badge("plug", "#c2410c") },
+  { id: "drop", label: "Масло", svg: () => badge("drop", "#15171c") },
 ];
+
+/** Is this data: URL one of the built-in logos? */
+export function isPresetLogo(dataUrl: string): boolean {
+  try {
+    const [head, body] = dataUrl.split(",", 2);
+    const text = head.includes(";base64") ? new TextDecoder().decode(Uint8Array.from(atob(body), (c) => c.charCodeAt(0))) : decodeURIComponent(body);
+    return text.includes(PRESET_MARK);
+  } catch {
+    return false;
+  }
+}
 
 export function svgDataUrl(svg: string): string {
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;

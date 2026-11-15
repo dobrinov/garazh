@@ -28,8 +28,8 @@ export function Layout() {
             </div>
           )}
           <div>
-            <div className="brand-name">{shopName || "Автосервиз"}</div>
-            <div className="brand-sub">Управление на автосервиз</div>
+            <div className="brand-name">{shopName || "Гараж"}</div>
+            <div className="brand-sub">{shopName ? "Гараж" : "Управление на автосервиз"}</div>
           </div>
         </div>
         {NAV.filter((n) => !("feature" in n) || !n.feature || features[n.feature]).map((n) => (

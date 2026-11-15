@@ -883,7 +883,7 @@ fn read_readings(car_dir: &Path) -> Vec<Reading> {
         .collect()
 }
 
-const README: &str = "Данни на програмата Автосервиз\r\n\
+const README: &str = "Данни на програмата Гараж\r\n\
 \r\n\
 Всичко тук е обикновени папки и текстови файлове. Можете да ги отваряте с\r\n\
 Notepad и Excel и да копирате документи директно в папките.\r\n\

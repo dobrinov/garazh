@@ -1,5 +1,6 @@
 import { createContext, ReactNode, useCallback, useContext, useEffect, useState } from "react";
 import { api } from "../api";
+import { isPresetLogo } from "../lib/logos";
 
 interface Brand {
   name: string;
@@ -29,6 +30,8 @@ export function useBrand() {
 }
 
 export function BrandMark({ logo, size = 36 }: { logo: string | null; size?: number }) {
-  if (logo) return <img className="brand-logo" src={logo} alt="" width={size} height={size} />;
+  // Built-in logos are tiles already; uploaded ones sit on a white tile so
+  // any shape or colour stays visible on the dark side menu.
+  if (logo) return <img className={`brand-logo ${isPresetLogo(logo) ? "preset" : "uploaded"}`} src={logo} alt="" width={size} height={size} />;
   return null;
 }
