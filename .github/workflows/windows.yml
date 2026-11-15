@@ -72,6 +72,8 @@ jobs:
             -
           releaseDraft: true
           includeUpdaterJson: true
+          # Installs are made with the setup .exe; make it the default update.
+          updaterJsonPreferNsis: true
           args: --config ${{ github.workspace }}/src-tauri/tauri.release.conf.json
 
       # ---- manual run: plain installers as a workflow artifact ----
