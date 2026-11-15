@@ -188,7 +188,9 @@ pub fn split_front_matter(text: &str) -> (Option<String>, String) {
 
 /// Parse a record file into its typed header and free-text body.
 pub fn parse_record<T: DeserializeOwned + Default>(text: &str) -> Result<(T, String), String> {
-    let (yaml, body) = split_front_matter(text);
+    // Files saved on Windows (Notepad, a git checkout) use CRLF line endings.
+    let text = text.strip_prefix(BOM).unwrap_or(text).replace("\r\n", "\n");
+    let (yaml, body) = split_front_matter(&text);
     let Some(yaml) = yaml else {
         return Ok((T::default(), body));
     };
@@ -365,5 +367,13 @@ mod tests {
         assert_eq!(&raw[..3], &[0xEF, 0xBB, 0xBF]);
         assert_eq!(read_text(&p).unwrap(), "здравей\n");
         assert!(!dir.path().join(".a.md.tmp").exists());
+    }
+
+    #[test]
+    fn windows_line_endings_and_bom_are_accepted() {
+        let text = "\u{feff}---\r\nрег_номер: СА 1\r\n---\r\n\r\nБележка\r\n";
+        let (d, body): (Demo, String) = parse_record(text).unwrap();
+        assert_eq!(d.plate, "СА 1");
+        assert_eq!(body, "Бележка\n");
     }
 }

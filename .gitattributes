@@ -1,0 +1,7 @@
+# Keep source and the built-in reference files (embedded with include_str!)
+# byte-identical on every OS.
+* text=auto eol=lf
+*.png binary
+*.ico binary
+*.icns binary
+*.woff2 binary
