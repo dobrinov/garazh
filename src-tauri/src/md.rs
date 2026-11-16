@@ -98,6 +98,10 @@ const KEYS: &[(&str, &str)] = &[
     ("stages", "етапи"),
     ("at", "от"),
     ("stage", "етап"),
+    ("stageNames", "имена_на_етапи"),
+    ("hiddenStages", "скрити_етапи"),
+    ("businessType", "вид_дейност"),
+    ("businessExtras", "също"),
 ];
 
 fn to_file_key(k: &str) -> Option<&'static str> {

@@ -8,7 +8,7 @@ import { Files } from "../components/Files";
 import { LaborTable, PartsTable, PrintLines } from "../components/Lines";
 import { TimeLogCard } from "../components/TimeLog";
 import { Icon, Loading, Menu, Plate, TextField, useNow, useToast } from "../components/ui";
-import { date, euro, int, km, STATUS_LABEL, STATUS_ORDER, todayIso } from "../lib/format";
+import { date, euro, int, isHiddenStage, km, STATUS_LABEL, STATUS_ORDER, todayIso } from "../lib/format";
 import { computeTotals } from "../lib/totals";
 import { formatDuration, nextStep, stageHint, stageOf, stageTimes } from "../lib/stages";
 import { startJob } from "../lib/jobs";
@@ -245,8 +245,8 @@ export function WorkOrderPage() {
         </div>
       </div>
       <div className="steps no-print" role="group" aria-label="Етап">
-        {STATUS_ORDER.map((s, i) => (
-          <button key={s} className={i < statusIdx ? "done" : i === statusIdx ? "now" : ""} aria-pressed={i === statusIdx} onClick={() => update({ status: s })}>
+        {STATUS_ORDER.filter((s) => !isHiddenStage(s) || s === stage).map((s, i) => (
+          <button key={s} className={STATUS_ORDER.indexOf(s) < statusIdx ? "done" : s === stage ? "now" : ""} aria-pressed={s === stage} onClick={() => update({ status: s })}>
             {i + 1}. {STATUS_LABEL[s]}
           </button>
         ))}

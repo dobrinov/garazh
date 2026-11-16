@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
-import { formatDuration, isStaleReady, monthAgo, nextStep, stageOf, stageReport, stageTimes, timeInStage } from "./stages";
+import { afterEach, describe, expect, it } from "vitest";
+import { setStageConfig, STATUS_LABEL } from "./format";
+import { BOARD_STAGES, formatDuration, isStaleReady, monthAgo, nextStep, stageOf, shopStages, stageReport, stageTimes, timeInStage } from "./stages";
 
 describe("stageOf", () => {
   it("keeps known stages", () => {
@@ -118,5 +119,29 @@ describe("stage report", () => {
     expect(r.stages.find((x) => x.status === "диагностика")!.count).toBe(2);
     expect(r.orders).toBe(3);
     expect(r.unknown).toBe(1);
+  });
+});
+
+describe("the shop's own stages", () => {
+  afterEach(() => setStageConfig(undefined, undefined));
+  it("renames stages on the buttons and keeps the stage values", () => {
+    setStageConfig({ диагностика: "Оглед", в_ремонт: " Боядисване " }, []);
+    expect(STATUS_LABEL.диагностика).toBe("Оглед");
+    expect(STATUS_LABEL.в_ремонт).toBe("Боядисване");
+    expect(nextStep("приета", false)).toEqual({ label: "Започни: Оглед", to: "диагностика" });
+    expect(nextStep("диагностика", false)).toEqual({ label: "Започни: Боядисване", to: "в_ремонт" });
+    expect(nextStep("в_ремонт", false)?.label).toBe("Готова е");
+  });
+  it("skips a stage the shop does not use, unless a card is in it", () => {
+    setStageConfig({}, ["диагностика", "чака_части", "готова"]);
+    expect(shopStages()).toEqual(["приета", "в_ремонт", "готова"]);
+    expect(shopStages(BOARD_STAGES, (s) => s === "чака_части")).toEqual(["приета", "чака_части", "в_ремонт", "готова"]);
+    expect(nextStep("приета", false)).toEqual({ label: "Започни ремонт", to: "в_ремонт" });
+  });
+  it("goes back to the defaults", () => {
+    setStageConfig({ диагностика: "Оглед" }, ["диагностика"]);
+    setStageConfig(undefined, undefined);
+    expect(STATUS_LABEL.диагностика).toBe("Диагностика");
+    expect(shopStages()).toEqual(BOARD_STAGES);
   });
 });

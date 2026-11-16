@@ -1,10 +1,12 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { HashRouter, Navigate, Route, Routes } from "react-router-dom";
 import { api, AppConfig, errorMessage } from "./api";
 import { Layout } from "./components/Layout";
 import { BrandProvider } from "./components/brand";
+import { ShopReloadCtx } from "./components/Business";
 import { FeaturesProvider } from "./components/features";
 import { UpdatesProvider } from "./components/updates";
+import { setStageConfig } from "./lib/format";
 import { ToastProvider } from "./components/ui";
 import { CarEdit } from "./pages/CarEdit";
 import { CarPage } from "./pages/CarPage";
@@ -25,19 +27,27 @@ export function App() {
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [features, setFeatures] = useState<Record<string, boolean> | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
+  // Bumped when the stage names change, so every screen shows the new ones.
+  const [, setStagesVersion] = useState(0);
 
   useEffect(() => {
     api.appConfig().then(setConfig).catch((e) => setError(errorMessage(e)));
   }, []);
 
-  useEffect(() => {
-    if (config?.dataDir) {
-      api
-        .getShop()
-        .then((s) => setFeatures(s.data.features))
-        .catch(() => setFeatures(undefined));
+  const reloadShop = useCallback(async () => {
+    try {
+      const s = await api.getShop();
+      setStageConfig(s.data.stageNames, s.data.hiddenStages);
+      setFeatures(s.data.features);
+      setStagesVersion((v) => v + 1);
+    } catch {
+      setFeatures(undefined);
     }
-  }, [config?.dataDir]);
+  }, []);
+
+  useEffect(() => {
+    if (config?.dataDir) reloadShop();
+  }, [config?.dataDir, reloadShop]);
 
   if (error) return <div className="page"><div className="note bad">{error}</div></div>;
   if (!config) return <div className="page muted">Зареждане…</div>;
@@ -49,6 +59,7 @@ export function App() {
       {!config.dataDir ? (
         <Setup onDone={setConfig} missingDir={config.missingDataDir ?? null} />
       ) : (
+        <ShopReloadCtx.Provider value={reloadShop}>
         <FeaturesProvider value={features}>
         <HashRouter>
           <Routes>
@@ -74,13 +85,14 @@ export function App() {
               <Route path="stock" element={<Stock />} />
               <Route
                 path="settings"
-                element={<Settings config={config} onConfig={setConfig} onFeatures={setFeatures} />}
+                element={<Settings config={config} onConfig={setConfig} onFeatures={setFeatures} onStages={(names, hidden) => { setStageConfig(names, hidden); setStagesVersion((v) => v + 1); }} />}
               />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
           </Routes>
         </HashRouter>
         </FeaturesProvider>
+        </ShopReloadCtx.Provider>
       )}
       </BrandProvider>
       </UpdatesProvider>

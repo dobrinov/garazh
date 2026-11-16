@@ -722,13 +722,31 @@ pub fn reference_dir(state: State<AppState>, kind: String) -> R<String> {
 pub fn list_jobs(state: State<AppState>) -> R<Vec<crate::jobs::Job>> {
     let st = store(&state)?;
     let dir = st.jobs_dir();
-    // Folders from before 0.5 get the examples once. A folder the owner
-    // emptied on purpose stays empty.
-    if !dir.exists() {
+    // Folders from before 0.5 (no business type: a car service) get the car
+    // examples once. A folder the owner emptied on purpose stays empty; a
+    // shop that chose its business got that business's jobs at the time.
+    if !dir.exists() && st.shop().map(|s| s.data.businessType.is_empty()).unwrap_or(true) {
         let _g = state.write_lock.lock().unwrap();
         st.install_starter(&dir, crate::jobs::STARTER, false)?;
     }
     Ok(crate::jobs::list(&dir))
+}
+
+/// Add usual jobs (from the business type the owner chose). A job whose name
+/// is already there is left as it is. Returns how many were written.
+#[tauri::command]
+pub fn add_jobs(state: State<AppState>, jobs: Vec<crate::jobs::NewJob>) -> R<usize> {
+    let _g = state.write_lock.lock().unwrap();
+    let st = store(&state)?;
+    Ok(crate::jobs::add(&st.jobs_dir(), &jobs)?)
+}
+
+/// Remove usual job files by file name (the examples the owner chose to drop).
+#[tauri::command]
+pub fn remove_jobs(state: State<AppState>, files: Vec<String>) -> R<usize> {
+    let _g = state.write_lock.lock().unwrap();
+    let st = store(&state)?;
+    Ok(crate::jobs::remove(&st.jobs_dir(), &files)?)
 }
 
 // ---------- quotes and reports ----------

@@ -2,19 +2,23 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { useEffect, useState } from "react";
 import { api, AppConfig, errorMessage, Loaded, Shop } from "../api";
 import { useBrand } from "../components/brand";
+import { BusinessIcon, businessLabel, ChangeBusinessDialog } from "../components/Business";
 import { LogoPicker } from "../components/LogoPicker";
 import { useUpdates } from "../components/updates";
 import { Icon, Loading, TextField, useToast } from "../components/ui";
 import { FEATURES, FeatureKey, resolveFeatures, toggle } from "../lib/features";
+import { DEFAULT_STATUS_LABEL, OPTIONAL_STAGES, STATUS_ORDER } from "../lib/format";
 
 export function Settings({
   config,
   onConfig,
   onFeatures,
+  onStages,
 }: {
   config: AppConfig;
   onConfig: (c: AppConfig) => void;
   onFeatures: (f: Record<string, boolean>) => void;
+  onStages: (names: Record<string, string>, hidden: string[]) => void;
 }) {
   const toast = useToast();
   const brand = useBrand();
@@ -168,6 +172,10 @@ export function Settings({
         </div>
       </section>
 
+      <BusinessCard shop={s} onChanged={() => api.getShop().then(setShop)} />
+
+      <StagesCard key={shop.hash} shop={s} onSaved={(names, hidden, hash) => { setShop({ ...shop, data: { ...shop.data, stageNames: names, hiddenStages: hidden }, hash }); onStages(names, hidden); }} />
+
       <section className="card pad" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <h2>Справочници</h2>
         <div className="muted">
@@ -254,5 +262,95 @@ export function Settings({
         </div>
       </section>
     </div>
+  );
+}
+
+/**
+ * The board's stages under the shop's own names. A paint shop may call
+ * "Диагностика" "Оглед" and switch off "Чака части". Work order files keep
+ * the stage values, so nothing in the data changes.
+ */
+function StagesCard({ shop, onSaved }: { shop: Shop; onSaved: (names: Record<string, string>, hidden: string[], hash: string) => void }) {
+  const toast = useToast();
+  const [names, setNames] = useState<Record<string, string>>(shop.stageNames ?? {});
+  const [hidden, setHidden] = useState<string[]>(shop.hiddenStages ?? []);
+  const [busy, setBusy] = useState(false);
+  const clean = (n: Record<string, string>) => Object.fromEntries(Object.entries(n).map(([k, v]) => [k, v.trim()]).filter(([k, v]) => v && v !== DEFAULT_STATUS_LABEL[k]));
+  const dirty = JSON.stringify(clean(names)) !== JSON.stringify(clean(shop.stageNames ?? {})) || [...hidden].sort().join() !== [...(shop.hiddenStages ?? [])].sort().join();
+
+  async function save() {
+    setBusy(true);
+    try {
+      const n = clean(names);
+      // On top of the file as it is on disk now, like the feature switches.
+      const current = await api.getShop();
+      const saved = await api.saveShop({ data: { ...current.data, stageNames: n, hiddenStages: hidden }, notes: current.notes, baseHash: current.hash });
+      onSaved(saved.data.stageNames ?? {}, saved.data.hiddenStages ?? [], saved.hash);
+      toast("Етапите са запазени");
+    } catch (e) {
+      toast(errorMessage(e), true);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="card pad" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <div>
+        <h2>Етапи на работните карти</h2>
+        <div className="muted small">
+          Колоните на таблото и бутоните в работната карта. Кръстете ги, както се казват при вас (например „Оглед“ вместо „Диагностика“
+          в бояджийски сервиз), а ненужните скрийте. В работните карти се пази същият етап, затова данните не се променят.
+        </div>
+      </div>
+      <div className="stage-names">
+        {STATUS_ORDER.map((k, i) => {
+          const optional = OPTIONAL_STAGES.includes(k);
+          const off = hidden.includes(k);
+          return (
+            <div key={k} className={`stage-name ${off ? "off" : ""}`}>
+              <span className="muted small mono">{i + 1}.</span>
+              <input className="input" value={names[k] ?? ""} placeholder={DEFAULT_STATUS_LABEL[k]} disabled={off} onChange={(e) => setNames({ ...names, [k]: e.target.value })} aria-label={`Име на етап „${DEFAULT_STATUS_LABEL[k]}“`} />
+              {optional ? (
+                <label className="check small">
+                  <input type="checkbox" checked={!off} onChange={(e) => setHidden(e.target.checked ? hidden.filter((h) => h !== k) : [...hidden, k])} />
+                  ползва се
+                </label>
+              ) : (
+                <span className="small muted">задължителен</span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <div className="row" style={{ justifyContent: "flex-end" }}>
+        <button className="btn" onClick={() => { setNames({}); setHidden([]); }} disabled={busy}>Както в началото</button>
+        <button className="btn primary" onClick={save} disabled={busy || !dirty}>Запази етапите</button>
+      </div>
+    </section>
+  );
+}
+
+/** Вид дейност: where the stage names, usual jobs and features came from. */
+function BusinessCard({ shop, onChanged }: { shop: Shop; onChanged: () => void }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <section className="card pad" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <div className="row" style={{ justifyContent: "space-between", alignItems: "flex-start" }}>
+        <div>
+          <h2>Вид дейност</h2>
+          <div className="muted small">От него идват имената на колоните, примерните обичайни работи и кои функции са включени. Смяната показва какво ще се промени и нищо не трие.</div>
+        </div>
+        <button className="btn" onClick={() => setOpen(true)}>Смени…</button>
+      </div>
+      <div className="biz-current">
+        <span className="biz-icon on"><BusinessIcon id={shop.businessType || "автосервиз"} /></span>
+        <div>
+          <strong>{businessLabel(shop)}</strong>
+          {!shop.businessType && <div className="small muted">Не е избран – програмата е подредена за автосервиз, както досега.</div>}
+        </div>
+      </div>
+      {open && <ChangeBusinessDialog onClose={() => setOpen(false)} onDone={() => { setOpen(false); onChanged(); }} />}
+    </section>
   );
 }

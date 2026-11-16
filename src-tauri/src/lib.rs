@@ -85,6 +85,8 @@ pub fn run() {
             commands::install_reference,
             commands::reference_dir,
             commands::list_jobs,
+            commands::add_jobs,
+            commands::remove_jobs,
             commands::list_quotes,
             commands::get_quote,
             commands::save_quote,

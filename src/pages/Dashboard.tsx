@@ -9,6 +9,7 @@ import { formatQty } from "../lib/stock";
 import { BOARD_STAGES, formatDuration, isStaleReady, stageOf, timeInStage } from "../lib/stages";
 import { entryMinutes, formatMinutes } from "../lib/time";
 import { receiveExpected } from "./Orders";
+import { BusinessQuestion } from "../components/BusinessQuestion";
 
 type Dashboard = DashboardData;
 
@@ -43,6 +44,7 @@ export function Dashboard() {
           {data.expected.length > 0 && ` · ${data.expected.length} очаквани`}
         </div>
       </div>
+      <BusinessQuestion />
 
       {data.problems.length > 0 && (
         <div className="note bad">

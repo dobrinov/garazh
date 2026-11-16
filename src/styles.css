@@ -447,3 +447,45 @@ body.dragging-card, body.dragging-card * { cursor: grabbing !important; user-sel
 .job-chips button:hover { border-color: var(--ink-2); }
 .job-chips button.on { background: var(--ink); border-color: var(--ink); color: #fff; }
 .search-preview .preview-actions { position: sticky; bottom: -18px; margin: 0 -20px -18px; padding: 12px 20px 18px; background: #fafaf7; border-top: 1px solid var(--line); }
+
+/* Settings: the shop's own stage names */
+.stage-names { display: grid; gap: 8px; max-width: 560px; }
+.stage-name { display: grid; grid-template-columns: 24px 1fr 130px; align-items: center; gap: 10px; }
+.stage-name.off .input { opacity: .5; }
+
+/* Business type */
+.btn.dark { background: var(--ink); border-color: var(--ink); color: #fff; }
+.btn.ghost { background: transparent; border-color: transparent; color: var(--muted); font-size: 20px; }
+.biz { display: flex; gap: 0; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; flex-wrap: wrap; }
+.biz-main { flex: 1 1 420px; min-width: 0; padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+.biz-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+@media (max-width: 720px) { .biz-grid { grid-template-columns: minmax(0, 1fr); } }
+.biz-card { display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 11px 13px; border: 1px solid var(--line); border-radius: 10px; background: #fff; font: inherit; cursor: pointer; text-align: left; }
+.biz-card:hover { border-color: var(--field); }
+.biz-card.on { border: 2px solid var(--accent); padding: 10px 12px; background: var(--accent-soft); }
+.biz-card .biz-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.biz-icon { width: 38px; height: 38px; flex: none; border-radius: 9px; display: grid; place-items: center; background: var(--muted-bg); color: var(--ink-2); }
+.biz-card.on .biz-icon, .biz-icon.on { background: var(--accent); color: #fff; }
+.biz-preview { flex: 0 1 340px; min-width: 260px; background: #fafaf7; border-left: 1px solid var(--line-2); padding: 16px 18px; display: flex; flex-direction: column; gap: 14px; }
+.biz-preview h3 { margin: 0 0 6px; font-size: 13.5px; }
+.biz-kicker { font-size: 11.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.biz-stages { display: flex; flex-wrap: wrap; gap: 6px; }
+.biz-stage { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; background: #fff; border: 1px solid var(--line); border-radius: 7px; font-size: 12.5px; font-weight: 600; }
+.biz-jobs { margin: 0; padding-left: 18px; font-size: 13px; display: flex; flex-direction: column; gap: 3px; }
+.biz-features { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; font-size: 13px; }
+.biz-features li { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.biz-features li.off > span:first-child { color: var(--muted); }
+.biz-h { margin: 0; font-size: 14px; }
+.biz-row { display: flex; gap: 10px; align-items: flex-start; padding: 9px 12px; border: 1px solid var(--line); border-radius: 9px; font-size: 13.5px; cursor: pointer; }
+.biz-row input { width: 18px; height: 18px; margin: 1px 0 0; accent-color: var(--accent); flex: none; }
+.biz-row.own { border-color: #ddd6fe; background: #f6f2ff; }
+.biz-own { display: block; font-size: 12px; font-weight: 600; color: var(--violet); margin-top: 2px; }
+.biz-sub { display: block; margin-top: 2px; }
+.biz-same { display: flex; flex-direction: column; gap: 4px; background: var(--ok-bg); color: var(--ok); border-radius: 9px; padding: 10px 14px; font-size: 13px; }
+.biz-ask { display: flex; gap: 18px; align-items: flex-start; padding: 18px 20px; }
+.biz-ask h2 { margin: 0 0 4px; font-size: 17px; }
+.biz-ask p { margin: 0; color: var(--ink-2); line-height: 1.55; max-width: 760px; }
+.biz-ask .stack-12 { height: auto; }
+.biz-ask-icon { width: 44px; height: 44px; flex: none; border-radius: 10px; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; }
+.biz-current { display: flex; align-items: center; gap: 14px; padding: 12px 14px; background: #fafaf7; border: 1px solid var(--line-2); border-radius: 10px; }
+.biz-stage .dot { width: 8px; height: 8px; border-radius: 4px; background: #7b8191; }

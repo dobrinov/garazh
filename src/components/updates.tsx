@@ -233,6 +233,24 @@ function rememberSeen(version: string) {
   } catch {
     /* the note after the next update just will not show */
   }
+  window.dispatchEvent(new Event(NOTES_SEEN));
+}
+
+const NOTES_SEEN = "garazh:notes-seen";
+
+/** "What's new" is still waiting to be read: other notices wait for it. */
+export function useUpdateNotesPending(): boolean {
+  const { current } = useUpdates();
+  const [, bump] = useState(0);
+  useEffect(() => {
+    const on = () => bump((n) => n + 1);
+    window.addEventListener(NOTES_SEEN, on);
+    return () => window.removeEventListener(NOTES_SEEN, on);
+  }, []);
+  if (!current) return true;
+  const seen = readSeen();
+  if (!seen || compareVersions(current, seen) <= 0) return false;
+  return changesBetween(parseChangelog(changelogText), seen, current).length > 0;
 }
 
 /**

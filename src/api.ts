@@ -33,6 +33,14 @@ export interface Shop {
   logo: string;
   counters: { client: number; workOrder: number; quote: number; report: number };
   features: Record<string, boolean>;
+  /** The shop's own stage names, e.g. { диагностика: "Оглед" }. */
+  stageNames?: Record<string, string>;
+  /** Optional stages not used: "диагностика", "чака_части". */
+  hiddenStages?: string[];
+  /** What the shop does; "" for folders from before 0.5 (a car service). */
+  businessType?: string;
+  /** Other work it also does (only its usual jobs were added). */
+  businessExtras?: string[];
   [extra: string]: unknown;
 }
 
@@ -95,6 +103,9 @@ export interface Job {
   parts: PartLine[];
   file: string;
 }
+
+/** A usual job to write into справочници/работи. */
+export type NewJob = Omit<Job, "file">;
 
 export interface PartLine {
   part: string;
@@ -579,6 +590,8 @@ export const api = {
   installReference: (overwrite: boolean) => invoke<number>("install_reference", { overwrite }),
   referenceDir: (kind: "schedules" | "links" | "jobs") => invoke<string>("reference_dir", { kind }),
   listJobs: () => invoke<Job[]>("list_jobs"),
+  addJobs: (jobs: NewJob[]) => invoke<number>("add_jobs", { jobs }),
+  removeJobs: (files: string[]) => invoke<number>("remove_jobs", { files }),
 
   listQuotes: () => invoke<QuoteSummary[]>("list_quotes"),
   getQuote: (id: string) => invoke<QuoteDetail>("get_quote", { id }),

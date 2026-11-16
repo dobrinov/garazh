@@ -81,7 +81,7 @@ export function matches(query: string, plates: string[], texts: string[]): boole
   return plates.some((p) => plateKey(p).includes(qp)) || texts.some((t) => textKey(t).includes(qt));
 }
 
-export const STATUS_LABEL: Record<string, string> = {
+export const DEFAULT_STATUS_LABEL: Readonly<Record<string, string>> = {
   приета: "Приета",
   диагностика: "Диагностика",
   чака_части: "Чака части",
@@ -89,6 +89,31 @@ export const STATUS_LABEL: Record<string, string> = {
   готова: "Готова",
   предадена: "Предадена",
 };
+
+/** Stage names as the screens show them: the shop's own, or the defaults. */
+export const STATUS_LABEL: Record<string, string> = { ...DEFAULT_STATUS_LABEL };
+
+/** Stages a shop may switch off. The others are needed by every shop. */
+export const OPTIONAL_STAGES = ["диагностика", "чака_части"];
+let hiddenStages = new Set<string>();
+
+/**
+ * Apply the shop's stage names and hidden stages (from сервиз.md). A paint
+ * shop calls "диагностика" "Оглед"; the files keep the stage values.
+ */
+export function setStageConfig(names: Record<string, string> | undefined, hidden: string[] | undefined) {
+  for (const k of Object.keys(DEFAULT_STATUS_LABEL)) STATUS_LABEL[k] = names?.[k]?.trim() || DEFAULT_STATUS_LABEL[k];
+  hiddenStages = new Set((hidden ?? []).filter((h) => OPTIONAL_STAGES.includes(h)));
+}
+
+export function isHiddenStage(s: string): boolean {
+  return hiddenStages.has(s);
+}
+
+/** The shop renamed this stage. */
+export function isRenamed(s: string): boolean {
+  return STATUS_LABEL[s] !== DEFAULT_STATUS_LABEL[s];
+}
 
 export const STATUS_ORDER = ["приета", "диагностика", "чака_части", "в_ремонт", "готова", "предадена"];
 

@@ -5,7 +5,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { api, OrderSummary } from "../api";
 import { useFeatures } from "../components/features";
 import { Loading, Plate, useLoad, useNow } from "../components/ui";
-import { date, euro, STATUS_LABEL, toCents } from "../lib/format";
+import { date, euro, isHiddenStage, STATUS_LABEL, toCents } from "../lib/format";
 import { formatDuration, stageReport } from "../lib/stages";
 import { TimeReport } from "./TimeReport";
 
@@ -166,7 +166,7 @@ function Stages() {
               <table className="tbl">
                 <thead><tr><th>Етап</th><th style={{ width: "30%" }} /><th className="right">Карти</th><th className="right">Средно</th><th className="right">Обичайно</th><th className="right">Общо</th></tr></thead>
                 <tbody>
-                  {report.stages.map((s) => (
+                  {report.stages.filter((s) => s.count > 0 || !isHiddenStage(s.status)).map((s) => (
                     <tr key={s.status}>
                       <td>{STATUS_LABEL[s.status]}</td>
                       <td><div className="meter" aria-hidden="true"><div style={{ width: `${Math.round((s.average / max) * 100)}%` }} /></div></td>

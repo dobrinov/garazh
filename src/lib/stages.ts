@@ -1,10 +1,23 @@
 // Work order stages: the board columns, the stage buttons and the one
 // "next step" button of a work order.
 import type { OrderStatus } from "../api";
-import { STATUS_ORDER } from "./format";
+import { isHiddenStage, isRenamed, STATUS_LABEL, STATUS_ORDER } from "./format";
 
 /** Columns of the board. "Предадена" is not a column: the card leaves the board. */
 export const BOARD_STAGES: OrderStatus[] = ["приета", "диагностика", "чака_части", "в_ремонт", "готова"];
+
+/**
+ * The stages this shop uses, in order. A stage the shop switched off still
+ * shows when `inUse` says a work order is in it (data from before the switch).
+ */
+export function shopStages(all: OrderStatus[] = BOARD_STAGES, inUse: (s: OrderStatus) => boolean = () => false): OrderStatus[] {
+  return all.filter((s) => !isHiddenStage(s) || inUse(s));
+}
+
+/** "Започни диагностика", or "Започни: Оглед" for a stage the shop renamed. */
+function startLabel(s: OrderStatus, verb: string): string {
+  return isRenamed(s) ? `Започни: ${STATUS_LABEL[s]}` : verb;
+}
 
 /**
  * The stage as the screens use it. Work orders written by hand or by early
@@ -29,13 +42,15 @@ export interface NextStep {
 export function nextStep(status: string, closed: boolean): NextStep | null {
   switch (stageOf(status)) {
     case "приета":
-      return { label: "Започни диагностика", to: "диагностика" };
+      return isHiddenStage("диагностика")
+        ? { label: startLabel("в_ремонт", "Започни ремонт"), to: "в_ремонт" }
+        : { label: startLabel("диагностика", "Започни диагностика"), to: "диагностика" };
     case "диагностика":
-      return { label: "Започни ремонт", to: "в_ремонт" };
+      return { label: startLabel("в_ремонт", "Започни ремонт"), to: "в_ремонт" };
     case "чака_части":
-      return { label: "Частите дойдоха", to: "в_ремонт" };
+      return { label: isRenamed("чака_части") ? `Продължи: ${STATUS_LABEL.в_ремонт}` : "Частите дойдоха", to: "в_ремонт" };
     case "в_ремонт":
-      return { label: "Готова е", to: "готова" };
+      return { label: isRenamed("готова") ? `Към „${STATUS_LABEL.готова}“` : "Готова е", to: "готова" };
     case "готова":
       return { label: closed ? "Предай на клиента" : "Предай и приключи", to: "предадена", close: !closed };
     default:
@@ -47,13 +62,13 @@ export function nextStep(status: string, closed: boolean): NextStep | null {
 export function stageHint(status: string, closed: boolean): string {
   switch (stageOf(status)) {
     case "приета":
-      return "Следва диагностика или направо ремонт (бутоните за етап отгоре).";
+      return isHiddenStage("диагностика") ? `Следва „${STATUS_LABEL.в_ремонт}“.` : `Следва „${STATUS_LABEL.диагностика}“ или направо „${STATUS_LABEL.в_ремонт}“ (бутоните за етап отгоре).`;
     case "диагностика":
-      return "Ако трябват части, изберете „Чака части“ отгоре.";
+      return isHiddenStage("чака_части") ? `Следва „${STATUS_LABEL.в_ремонт}“.` : `Ако трябват части, изберете „${STATUS_LABEL.чака_части}“ отгоре.`;
     case "чака_части":
       return "Колата чака доставка.";
     case "в_ремонт":
-      return "„Готова е“ слага колата в „Днес → Готови за предаване“ с телефона на клиента.";
+      return `„${nextStep("в_ремонт", false)?.label}“ слага колата в „Днес → Готови за предаване“ с телефона на клиента.`;
     case "готова":
       return closed
         ? "Картата е приключена. Остава да предадете колата."

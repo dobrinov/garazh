@@ -167,7 +167,7 @@ impl Store {
         fs::create_dir_all(self.root.join(INDEX_DIR))?;
         // Starter reference data goes in only when its folder has no files yet,
         // so files the owner deleted on purpose do not come back.
-        for (dir, files) in [(self.schedules_dir(), crate::schedule::STARTER), (self.links_dir(), crate::links::STARTER), (self.jobs_dir(), crate::jobs::STARTER)] {
+        for (dir, files) in [(self.schedules_dir(), crate::schedule::STARTER), (self.links_dir(), crate::links::STARTER)] {
             let empty = fs::read_dir(&dir).map(|mut rd| rd.next().is_none()).unwrap_or(true);
             if empty {
                 self.install_starter(&dir, files, false)?;

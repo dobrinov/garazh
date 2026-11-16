@@ -110,6 +110,21 @@ pub struct Shop {
     pub logo: String,
     pub counters: Counters,
     pub features: BTreeMap<String, bool>,
+    /// The shop's own names for board stages ("диагностика" → "Оглед").
+    /// Files keep the stage values; only the screens use these names.
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    pub stageNames: BTreeMap<String, String>,
+    /// Optional stages the shop does not use ("диагностика", "чака_части").
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub hiddenStages: Vec<String>,
+    /// What the shop does ("автосервиз", "бояджийски"…), chosen at first
+    /// start or later in Настройки. Empty for folders from before 0.5: those
+    /// were set up as a car service and stay so until the owner chooses.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub businessType: String,
+    /// Other work the shop also does: only its usual jobs were added.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub businessExtras: Vec<String>,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
 }
@@ -128,6 +143,10 @@ impl Default for Shop {
             logo: String::new(),
             counters: Counters::default(),
             features: BTreeMap::new(),
+            stageNames: BTreeMap::new(),
+            hiddenStages: Vec::new(),
+            businessType: String::new(),
+            businessExtras: Vec::new(),
             extra: Map::new(),
         }
     }
@@ -407,5 +426,29 @@ mod tests {
         assert_eq!(t.net, Money(12063));
         assert_eq!(t.vat, Money(2413));
         assert_eq!(t.total, Money(14476));
+    }
+}
+
+#[cfg(test)]
+mod shop_stage_tests {
+    use crate::md::{parse_record, render_record};
+    use crate::model::Shop;
+
+    #[test]
+    fn stage_names_are_kept_in_the_shop_file_and_optional() {
+        let old = "---\nиме: Бояджийска\nфункции: {}\n---\n\nтекст";
+        let (shop, _) = parse_record::<Shop>(old).unwrap();
+        assert!(shop.stageNames.is_empty() && shop.hiddenStages.is_empty());
+        let text = render_record(&shop, "текст").unwrap();
+        assert!(!text.contains("имена_на_етапи") && !text.contains("скрити_етапи"), "nothing written when not used");
+
+        let mut s = shop.clone();
+        s.stageNames.insert("диагностика".into(), "Оглед".into());
+        s.hiddenStages.push("чака_части".into());
+        let text = render_record(&s, "текст").unwrap();
+        assert!(text.contains("имена_на_етапи:") && text.contains("диагностика: Оглед") && text.contains("скрити_етапи:"));
+        let (back, _) = parse_record::<Shop>(&text).unwrap();
+        assert_eq!(back.stageNames["диагностика"], "Оглед");
+        assert_eq!(back.hiddenStages, ["чака_части"]);
     }
 }

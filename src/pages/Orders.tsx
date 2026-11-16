@@ -7,7 +7,7 @@ import { useFeatures } from "../components/features";
 import { useSearch } from "../components/Search";
 import { Icon, Loading, Menu, Plate, StatusBadge, useLoad, useNow, useToast } from "../components/ui";
 import { date, euro, matches, STATUS_LABEL, todayIso } from "../lib/format";
-import { BOARD_STAGES, formatDuration, isStaleReady, stageOf, timeInStage } from "../lib/stages";
+import { BOARD_STAGES, formatDuration, isStaleReady, shopStages, stageOf, timeInStage } from "../lib/stages";
 import { QuotesPanel } from "./Quotes";
 
 type Tab = "shop" | "unpaid" | "all" | "quotes";
@@ -223,6 +223,8 @@ function Board({
     if (card && stageOf(card.order.status) !== stage) onMove(what.id, stage);
   });
   const over = drag.over;
+  // The shop's stages; one it switched off stays while a card is still in it.
+  const stages = shopStages(BOARD_STAGES, (s) => rows.some((o) => stageOf(o.order.status) === s));
   return (
     <>
       <div className="board-wrap">
@@ -260,7 +262,7 @@ function Board({
               <button type="button" className="board-empty link-btn" onClick={() => setAdding(true)}>Обадил се клиент? Натиснете +, за да го запишете.</button>
             )}
           </section>
-          {BOARD_STAGES.map((s) => {
+          {stages.map((s) => {
             const cards = rows.filter((o) => stageOf(o.order.status) === s);
             return (
               <section key={s} data-stage={s} className={`board-col stage-${s} ${over === s ? "over" : ""}`} aria-label={STATUS_LABEL[s]}>
@@ -285,7 +287,7 @@ function Board({
                           <Menu
                             small
                             label="Етап"
-                            items={BOARD_STAGES.filter((x) => x !== s).map((x) => ({ label: `→ ${STATUS_LABEL[x]}`, onSelect: () => onMove(o.order.id, x) }))}
+                            items={stages.filter((x) => x !== s).map((x) => ({ label: `→ ${STATUS_LABEL[x]}`, onSelect: () => onMove(o.order.id, x) }))}
                           />
                         </span>
                       </span>
