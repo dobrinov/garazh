@@ -1,13 +1,15 @@
 import { open } from "@tauri-apps/plugin-dialog";
 import { useEffect, useState } from "react";
-import { api, AppConfig, errorMessage, Loaded, Shop } from "../api";
+import { useSearchParams } from "react-router-dom";
+import { api, AppConfig, errorMessage, Job, Loaded, Shop } from "../api";
 import { useBrand } from "../components/brand";
 import { BusinessIcon, businessLabel, ChangeBusinessDialog } from "../components/Business";
 import { LogoPicker } from "../components/LogoPicker";
 import { useUpdates } from "../components/updates";
 import { Icon, Loading, TextField, useToast } from "../components/ui";
 import { FEATURES, FeatureKey, resolveFeatures, toggle } from "../lib/features";
-import { DEFAULT_STATUS_LABEL, OPTIONAL_STAGES, STATUS_ORDER } from "../lib/format";
+import { DEFAULT_STATUS_LABEL, OPTIONAL_STAGES, STATUS_LABEL, STATUS_ORDER } from "../lib/format";
+import { jobStage } from "../lib/jobs";
 
 export function Settings({
   config,
@@ -29,6 +31,9 @@ export function Settings({
   const [daily, setDaily] = useState(config.backupDaily);
   const [keep, setKeep] = useState(config.backupKeep || 30);
   const [busy, setBusy] = useState(false);
+  const [params, setParams] = useSearchParams();
+  const sec: Section = SECTIONS.some((x) => x.id === params.get("s")) ? (params.get("s") as Section) : "shop";
+  const setSec = (s: Section) => setParams(s === "shop" ? {} : { s }, { replace: true });
 
   useEffect(() => {
     api.getShop().then(setShop).catch((e) => setError(errorMessage(e)));
@@ -124,9 +129,19 @@ export function Settings({
   }
 
   return (
-    <div className="page" style={{ maxWidth: 1100 }}>
+    <div className="page settings-page">
       <h1>Настройки</h1>
-
+      <div className="settings">
+        <nav className="settings-nav" aria-label="Раздели на настройките">
+          {SECTIONS.map((x) => (
+            <button key={x.id} type="button" aria-current={sec === x.id ? "page" : undefined} className={sec === x.id ? "on" : ""} onClick={() => setSec(x.id)}>
+              <span>{x.name}</span>
+              <span className="small muted">{x.sub}</span>
+            </button>
+          ))}
+        </nav>
+        <div className="settings-body">
+          {sec === "shop" && (
       <section className="card pad" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <div className="row" style={{ justifyContent: "space-between" }}>
           <h2>Данни за сервиза</h2>
@@ -147,7 +162,16 @@ export function Settings({
         <label className="check"><input type="checkbox" checked={s.vatRegistered} onChange={(e) => set("vatRegistered", e.target.checked)} />Регистриран по ДДС (начислява се ДДС в работните карти)</label>
         <div className="muted small">Следващ клиент №{s.counters.client + 1} · следваща работна карта №{s.counters.workOrder + 1}</div>
       </section>
+          )}
+          {sec === "work" && (
+            <>
+      <BusinessCard shop={s} onChanged={() => api.getShop().then(setShop)} />
 
+      <StagesCard key={shop.hash} shop={s} onSaved={(names, hidden, hash) => { setShop({ ...shop, data: { ...shop.data, stageNames: names, hiddenStages: hidden }, hash }); onStages(names, hidden); }} />
+              <JobsCard />
+            </>
+          )}
+          {sec === "features" && (
       <section className="card pad" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <div>
           <h2>Функции</h2>
@@ -171,11 +195,8 @@ export function Settings({
           })}
         </div>
       </section>
-
-      <BusinessCard shop={s} onChanged={() => api.getShop().then(setShop)} />
-
-      <StagesCard key={shop.hash} shop={s} onSaved={(names, hidden, hash) => { setShop({ ...shop, data: { ...shop.data, stageNames: names, hiddenStages: hidden }, hash }); onStages(names, hidden); }} />
-
+          )}
+          {sec === "ref" && (
       <section className="card pad" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <h2>Справочници</h2>
         <div className="muted">
@@ -193,7 +214,9 @@ export function Settings({
           <button className="btn danger" onClick={() => installReference(true)}>Възстанови примерните файлове</button>
         </div>
       </section>
-
+          )}
+          {sec === "data" && (
+            <>
       <section className="card pad" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <h2>Папка с данни</h2>
         <div className="row">
@@ -206,7 +229,25 @@ export function Settings({
           документи директно в папките – програмата ги вижда, когато прозорецът ѝ отново стане активен.
         </div>
       </section>
-
+      <section className="card pad" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <h2>Резервни копия</h2>
+        <div className="row">
+          <input className="input grow mono" value={backupDir} onChange={(e) => setBackupDir(e.target.value)} placeholder="напр. E:\Архив (друг диск или USB)" aria-label="Папка за архиви" />
+          <button className="btn" onClick={pickBackup}>Избери…</button>
+        </div>
+        <div className="row" style={{ gap: 24 }}>
+          <label className="check"><input type="checkbox" checked={daily} onChange={(e) => setDaily(e.target.checked)} />Автоматичен архив веднъж дневно (при стартиране)</label>
+          <label className="check">Пази последните <input className="input" type="number" min={1} max={365} value={keep} onChange={(e) => setKeep(Number(e.target.value) || 30)} style={{ width: 80 }} aria-label="Брой архиви" /> архива</label>
+        </div>
+        <div className="row">
+          <button className="btn" onClick={saveBackup}>Запази</button>
+          <button className="btn primary" onClick={backupNow} disabled={busy || !backupDir}>Направи копие сега</button>
+          <span className="muted small">{config.lastBackup ? `Последен архив: ${config.lastBackup}` : "Още няма архив"}</span>
+        </div>
+      </section>
+            </>
+          )}
+          {sec === "updates" && (
       <section className="card pad" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <h2>Обновяване</h2>
         <div className="row" style={{ gap: 16, flexWrap: "wrap" }}>
@@ -244,23 +285,9 @@ export function Settings({
           се прави резервно копие. Новата версия се проверява с подпис, преди да бъде инсталирана.
         </div>
       </section>
-
-      <section className="card pad" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        <h2>Резервни копия</h2>
-        <div className="row">
-          <input className="input grow mono" value={backupDir} onChange={(e) => setBackupDir(e.target.value)} placeholder="напр. E:\Архив (друг диск или USB)" aria-label="Папка за архиви" />
-          <button className="btn" onClick={pickBackup}>Избери…</button>
+          )}
         </div>
-        <div className="row" style={{ gap: 24 }}>
-          <label className="check"><input type="checkbox" checked={daily} onChange={(e) => setDaily(e.target.checked)} />Автоматичен архив веднъж дневно (при стартиране)</label>
-          <label className="check">Пази последните <input className="input" type="number" min={1} max={365} value={keep} onChange={(e) => setKeep(Number(e.target.value) || 30)} style={{ width: 80 }} aria-label="Брой архиви" /> архива</label>
-        </div>
-        <div className="row">
-          <button className="btn" onClick={saveBackup}>Запази</button>
-          <button className="btn primary" onClick={backupNow} disabled={busy || !backupDir}>Направи копие сега</button>
-          <span className="muted small">{config.lastBackup ? `Последен архив: ${config.lastBackup}` : "Още няма архив"}</span>
-        </div>
-      </section>
+      </div>
     </div>
   );
 }
@@ -351,6 +378,69 @@ function BusinessCard({ shop, onChanged }: { shop: Shop; onChanged: () => void }
         </div>
       </div>
       {open && <ChangeBusinessDialog onClose={() => setOpen(false)} onDone={() => { setOpen(false); onChanged(); }} />}
+    </section>
+  );
+}
+
+type Section = "shop" | "work" | "features" | "ref" | "data" | "updates";
+const SECTIONS: { id: Section; name: string; sub: string }[] = [
+  { id: "shop", name: "Сервиз", sub: "име, лого, ставка, ДДС" },
+  { id: "work", name: "Работа", sub: "вид дейност, етапи, обичайни работи" },
+  { id: "features", name: "Функции", sub: "оферти, склад, време…" },
+  { id: "ref", name: "Справочници", sub: "графици, полезни връзки" },
+  { id: "data", name: "Данни и архив", sub: "папка, резервни копия" },
+  { id: "updates", name: "Обновяване", sub: "версия и ново" },
+];
+
+/** The usual jobs as a list, each opened in the text editor. */
+function JobsCard() {
+  const toast = useToast();
+  const [jobs, setJobs] = useState<Job[] | null>(null);
+  const load = () => api.listJobs().then(setJobs).catch(() => setJobs([]));
+  useEffect(() => {
+    load();
+  }, []);
+  async function open(file?: string) {
+    try {
+      const dir = await api.referenceDir("jobs");
+      await api.openPath(file ? `${dir}${dir.includes("\\") ? "\\" : "/"}${file}` : dir);
+    } catch (e) {
+      toast(errorMessage(e), true);
+    }
+  }
+  return (
+    <section className="card">
+      <div className="card-head">
+        <div>
+          <h2>Обичайни работи</h2>
+          <div className="small muted">Избират се при „Приеми кола“ и в работната карта. Всяка е файл в „справочници\\работи“.</div>
+        </div>
+        <div className="row" style={{ gap: 6 }}>
+          <button type="button" className="btn small" onClick={load}>Обнови</button>
+          <button type="button" className="btn small" onClick={() => open()}><Icon name="folder" size={14} />Папката</button>
+        </div>
+      </div>
+      {!jobs ? (
+        <div className="empty">Зареждане…</div>
+      ) : jobs.length === 0 ? (
+        <div className="empty">Няма обичайни работи. Копирайте файл в папката или сменете вида дейност, за да получите примерите.</div>
+      ) : (
+        <div className="table-wrap">
+          <table className="tbl">
+            <thead><tr><th>Работа</th><th>Започва в</th><th>Редове</th><th /></tr></thead>
+            <tbody>
+              {jobs.map((j) => (
+                <tr key={j.file}>
+                  <td><strong>{j.name}</strong></td>
+                  <td>{STATUS_LABEL[jobStage(j)]}</td>
+                  <td className="small muted">{j.labor.length} труд · {j.parts.length} {j.parts.length === 1 ? "част" : "части"}</td>
+                  <td className="right"><button type="button" className="btn small" onClick={() => open(j.file)}>Отвори</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </section>
   );
 }

@@ -180,7 +180,7 @@ export interface MenuItem {
 }
 
 /** A button that opens a short list of less frequent actions ("Още"). */
-export function Menu({ label = "Още", items, small }: { label?: string; items: (MenuItem | false | null | undefined)[]; small?: boolean }) {
+export function Menu({ label = "Още", items, small, dots }: { label?: string; items: (MenuItem | false | null | undefined)[]; small?: boolean; /** Only "⋯", with `label` as its name. */ dots?: boolean }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -199,10 +199,14 @@ export function Menu({ label = "Още", items, small }: { label?: string; items
   if (list.length === 0) return null;
   return (
     <div className="menu" ref={ref}>
-      <button type="button" className={`btn ${small ? "small menu-small" : ""}`} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>
-        {label}
-        <Icon name="down" size={14} width={2.4} />
-      </button>
+      {dots ? (
+        <button type="button" className="menu-dots" aria-label={label} title={label} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>⋯</button>
+      ) : (
+        <button type="button" className={`btn ${small ? "small menu-small" : ""}`} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>
+          {label}
+          <Icon name="down" size={14} width={2.4} />
+        </button>
+      )}
       {open && (
         <div className="menu-list" role="menu">
           {list.map((m) => (

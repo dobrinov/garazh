@@ -273,21 +273,25 @@ export function UpdatedNotice() {
   useEffect(() => {
     if (newer && changes.length === 0) rememberSeen(current);
   }, [newer, changes.length, current]);
+  const [open, setOpen] = useState(false);
   function close() {
     rememberSeen(current);
     setSeen(current);
   }
   if (!newer || changes.length === 0) return null;
+  const count = changes.reduce((n, r) => n + r.items.length, 0);
+  // One line until opened: the notice must not push the day's work down.
   return (
     <div className="update-banner done" role="status">
       <div className="update-banner-row">
         <div className="grow">
           <div className="update-title">Гараж е обновен до версия {current}</div>
-          <div className="update-sub">Ето какво е новото от версия {seen} насам.</div>
+          <div className="update-sub">{count} {count === 1 ? "промяна" : "промени"} от версия {seen} насам.</div>
         </div>
+        <button className="btn small" onClick={() => setOpen(!open)} aria-expanded={open}>{open ? "Скрий" : "Какво ново"}</button>
         <button className="btn small primary" onClick={close}>Разбрах</button>
       </div>
-      <ChangeList releases={changes} />
+      {open && <div className="update-scroll"><ChangeList releases={changes} /></div>}
     </div>
   );
 }

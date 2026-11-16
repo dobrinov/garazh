@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { api, StockItem, Car, Client, emptyOrder, errorMessage, FileInfo, isConflict, notifyChanged, Shop, Usage, WorkOrder } from "../api";
+import { api, StockItem, Car, Client, emptyOrder, errorMessage, FileInfo, isConflict, Job, notifyChanged, Shop, Usage, WorkOrder } from "../api";
 import { FaultCodes } from "../components/FaultCodes";
 import { useBrand } from "../components/brand";
 import { useFeatures } from "../components/features";
 import { Files } from "../components/Files";
-import { LaborTable, PartsTable, PrintLines } from "../components/Lines";
+import { PrintLines, WorkLines } from "../components/Lines";
 import { TimeLogCard } from "../components/TimeLog";
 import { Icon, Loading, Menu, Plate, TextField, useNow, useToast } from "../components/ui";
 import { date, euro, int, isHiddenStage, km, STATUS_LABEL, STATUS_ORDER, todayIso } from "../lib/format";
@@ -38,6 +38,10 @@ export function WorkOrderPage() {
   const [tick, setTick] = useState(0);
   const [editIntake, setEditIntake] = useState(false);
   const [fromJob, setFromJob] = useState("");
+  const [jobs, setJobs] = useState<Job[]>([]);
+  useEffect(() => {
+    api.listJobs().then(setJobs).catch(() => setJobs([]));
+  }, []);
   const now = useNow();
   const features = useFeatures();
   const [stock, setStock] = useState<StockItem[] | null>(null);
@@ -218,11 +222,15 @@ export function WorkOrderPage() {
       <div className="page-head no-print">
         <div>
           <div className="crumbs">
-            <Link to="/orders">Работни карти</Link><span>/</span><Link to={`/cars/${ctx.car.id}`}>{ctx.car.plate}</Link><span>/</span><span>{order.number || "Нова"}</span>
+            <Link to="/orders">Работни карти</Link><span>/</span><span className="mono">{order.number || "Нова работна карта"}</span>
           </div>
-          <h1>Работна карта <span className="mono" style={{ fontSize: 22 }}>{order.number || "(нова)"}</span></h1>
+          <div className="wo-title">
+            <Plate value={ctx.car.plate} big />
+            <h1>{order.title || order.complaint.split("\n")[0] || "Работна карта"}</h1>
+          </div>
           <div className="muted">
-            {ctx.client.name} · <Plate value={ctx.car.plate} /> {ctx.car.make} {ctx.car.model}
+            <Link to={`/cars/${ctx.car.id}`}>{`${ctx.car.make} ${ctx.car.model}`.trim() || ctx.car.plate}</Link> · {ctx.client.name}
+            {ctx.client.phone && <> · <a href={`tel:${ctx.client.phone}`}>{ctx.client.phone}</a></>}
             {closed && order.closedOn && ` · приключена ${date(order.closedOn)}`}
           </div>
         </div>
@@ -241,45 +249,40 @@ export function WorkOrderPage() {
           />
           <button className="btn" onClick={() => window.print()} disabled={!id}><Icon name="print" />Печат</button>
           {(dirty || !id) && <button className={`btn ${step ? "" : "primary"}`} onClick={() => save()} disabled={busy} title="Ctrl+S">Запази</button>}
-          {step && <button className="btn primary" onClick={advance} disabled={busy}><Icon name="check" />{step.label}</button>}
+          {step && <button className="btn primary" onClick={advance} disabled={busy} title={stageHint(stage, closed)}><Icon name="check" />{step.label}</button>}
         </div>
       </div>
-      <div className="steps no-print" role="group" aria-label="Етап">
-        {STATUS_ORDER.filter((s) => !isHiddenStage(s) || s === stage).map((s, i) => (
-          <button key={s} className={STATUS_ORDER.indexOf(s) < statusIdx ? "done" : s === stage ? "now" : ""} aria-pressed={s === stage} onClick={() => update({ status: s })}>
-            {i + 1}. {STATUS_LABEL[s]}
-          </button>
-        ))}
-      </div>
-      <div className="muted small no-print row" style={{ marginTop: -8, justifyContent: "space-between" }}>
-        <span>{stageHint(stage, closed)}</span>
-        {stageTimes(order, now).length > 0 && (
-          <span className="stage-times" title="Време по етапи, отчетено при всяка смяна на етапа (часовниково време)">
-            {stageTimes(order, now).map((t) => (
-              <span key={t.status} className={t.current ? "now" : ""}>
-                {STATUS_LABEL[t.status]} {t.approx ? "≈ " : ""}{formatDuration(t.minutes)}
-              </span>
-            ))}
-          </span>
-        )}
-      </div>
+      <ol className="stage-track no-print" aria-label="Етап – натиснете, за да смените">
+        {(() => {
+          const times = new Map(stageTimes(order, now).map((t) => [t.status, t]));
+          return STATUS_ORDER.filter((s) => !isHiddenStage(s) || s === stage).map((s) => {
+            const t = times.get(s as never);
+            const state = s === stage ? "now" : STATUS_ORDER.indexOf(s) < statusIdx ? (t ? "done" : "skipped") : "next";
+            return (
+              <li key={s}>
+                <button type="button" className={state} aria-current={s === stage ? "step" : undefined} onClick={() => update({ status: s })} title={state === "next" ? `Премести в „${STATUS_LABEL[s]}“` : undefined}>
+                  <span className="bar" />
+                  <span className="label"><span>{STATUS_LABEL[s]}</span><span className="time">{t ? `${t.approx ? "≈ " : ""}${formatDuration(t.minutes)}` : state === "skipped" ? "—" : ""}</span></span>
+                </button>
+              </li>
+            );
+          });
+        })()}
+      </ol>
 
       <div className="cols no-print">
         <div className="wide" style={{ display: "flex", flexDirection: "column", gap: 18 }}>
           {!intakeOpen ? (
-            <section className="card pad" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              <div className="row" style={{ justifyContent: "space-between" }}>
-                <h2>Приемане</h2>
-                <button type="button" className="btn small" onClick={() => setEditIntake(true)}>Промени</button>
-              </div>
-              <dl className="facts">
-                <div><dt>Приета</dt><dd className="mono">{date(order.date)}</dd></div>
-                <div><dt>Пробег</dt><dd className="mono">{km(order.mileage)}</dd></div>
-                <div><dt>Гориво</dt><dd>{order.fuelLevel || "—"}</dd></div>
+            <section className="card intake-line" aria-label="Приемане">
+              <dl>
+                <div><dt>Приета</dt><dd>{date(order.date)}</dd></div>
+                <div><dt>Пробег</dt><dd>{km(order.mileage)}</dd></div>
+                {order.fuelLevel && <div><dt>Гориво</dt><dd>{order.fuelLevel}</dd></div>}
                 <div><dt>Механик</dt><dd>{order.mechanic || "—"}</dd></div>
+                <div className="grow"><dt>Оплакване</dt><dd style={{ whiteSpace: "pre-wrap" }}>{order.complaint || "—"}</dd></div>
               </dl>
-              {kmNote && <div className={`note ${kmNote.bad ? "warn" : "info"}`}>{kmNote.text}</div>}
-              <div><div className="small muted">Оплакване на клиента</div><div style={{ whiteSpace: "pre-wrap" }}>{order.complaint || "—"}</div></div>
+              <button type="button" className="btn small" onClick={() => setEditIntake(true)}>Промени</button>
+              {kmNote && <div className={`note ${kmNote.bad ? "warn" : "info"}`} style={{ gridColumn: "1 / -1" }}>{kmNote.text}</div>}
             </section>
           ) : (
           <section className="card pad" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -306,7 +309,17 @@ export function WorkOrderPage() {
           )}
 
           {fromJob && !id && <div className="note info">{fromJob}</div>}
-          <LaborTable title="Извършени дейности (труд)" lines={order.labor} onChange={(labor) => update({ labor })} rate={ctx.shop.laborRate} mechanic={order.mechanic} />
+          <WorkLines
+            labor={order.labor}
+            parts={order.parts}
+            onChange={(labor, parts) => update({ labor, parts })}
+            rate={ctx.shop.laborRate}
+            mechanic={order.mechanic}
+            make={ctx.car.make}
+            stock={features.stock ? stock ?? [] : undefined}
+            jobs={jobs}
+            hint={`Частите се записват в историята на колата при приключване${features.stock ? ", а тези от склада се изписват" : ""}.`}
+          />
 
           {features.timeTracking && (id ? (
             <TimeLogCard
@@ -321,8 +334,6 @@ export function WorkOrderPage() {
             <section className="card pad muted">Запазете картата, за да пуснете таймер за отработено време.</section>
           ))}
 
-          <PartsTable title="Части и консумативи" hint={`При приключване се записват в историята на колата с пробега от приемането${features.stock ? ", а частите от склада се изписват" : ""}.`} lines={order.parts} onChange={(parts) => update({ parts })} make={ctx.car.make} stock={features.stock ? stock ?? [] : undefined} />
-
           <section className="card pad">
             <h2 style={{ marginBottom: 12 }}>Диагностика и файлове</h2>
             {id ? (
@@ -336,7 +347,7 @@ export function WorkOrderPage() {
           </section>
         </div>
 
-        <aside className="narrow" style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+        <aside className="narrow wo-side">
           <section className="card pad totals">
             <h2 style={{ marginBottom: 6 }}>Сметка</h2>
             <div><span>Труд</span><span className="mono">{euro(totals.labor)}</span></div>

@@ -4,7 +4,7 @@ import { euro } from "../lib/format";
 import { lineCents } from "../lib/totals";
 import { formatQty } from "../lib/stock";
 import { RealOemPartLinks } from "./RealOem";
-import { Icon } from "./ui";
+import { Icon, Menu } from "./ui";
 
 export function NumInput({ value, onChange, label }: { value: number; onChange: (v: number) => void; label: string }) {
   const [text, setText] = useState(String(value));
@@ -197,5 +197,126 @@ export function PrintLines({ labor, parts }: { labor: LaborLine[]; parts: PartLi
         ))}
       </tbody>
     </table>
+  );
+}
+
+/**
+ * Labour and parts in one table: one place to read the job and one row of
+ * buttons to add to it. The work order keeps them as two lists.
+ */
+export function WorkLines({
+  labor,
+  parts,
+  onChange,
+  rate,
+  mechanic = "",
+  make,
+  stock,
+  jobs,
+  hint,
+}: {
+  labor: LaborLine[];
+  parts: PartLine[];
+  onChange: (labor: LaborLine[], parts: PartLine[]) => void;
+  rate: Money;
+  mechanic?: string;
+  make?: string;
+  stock?: StockItem[];
+  /** Usual jobs: picking one adds its lines. */
+  jobs?: { name: string; labor: LaborLine[]; parts: PartLine[] }[];
+  hint?: string;
+}) {
+  const [picking, setPicking] = useState(false);
+  const byCode = new Map((stock ?? []).map((s) => [s.code, s]));
+  const setL = (i: number, p: Partial<LaborLine>) => onChange(labor.map((x, j) => (j === i ? { ...x, ...p } : x)), parts);
+  const setP = (i: number, p: Partial<PartLine>) => onChange(labor, parts.map((x, j) => (j === i ? { ...x, ...p } : x)));
+  const isZero = (m: Money) => !Number(String(m).replace(",", "."));
+  return (
+    <section className="card">
+      <div className="card-head">
+        <div>
+          <h2>Работа и части</h2>
+          {hint && <div className="small muted">{hint}</div>}
+        </div>
+        <div className="row" style={{ gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
+          {jobs && jobs.length > 0 && (
+            <Menu
+              small
+              label="Обичайна работа"
+              items={jobs.map((j) => ({
+                label: j.name,
+                onSelect: () =>
+                  onChange(
+                    [...labor.filter((l) => l.description.trim()), ...j.labor.map((l) => ({ ...l, mechanic: l.mechanic || mechanic, rate: isZero(l.rate) ? rate : l.rate }))],
+                    [...parts, ...j.parts.map((p) => ({ ...p }))],
+                  ),
+              }))}
+            />
+          )}
+          {stock && <button className="btn small" onClick={() => setPicking(!picking)}><Icon name="box" size={14} />От склада</button>}
+          <button className="btn small" onClick={() => onChange([...labor, { description: "", mechanic, hours: 1, rate }], parts)}>+ Труд</button>
+          <button className="btn small dark" onClick={() => onChange(labor, [...parts, { part: "", partNumber: "", quantity: 1, unit: "бр.", price: "0.00" }])}>+ Част</button>
+        </div>
+      </div>
+      {stock && picking && (
+        <StockPicker
+          stock={stock}
+          onPick={(s) => {
+            onChange(labor, [...parts, { part: s.part, partNumber: s.partNumber, quantity: 1, unit: s.unit || "бр.", price: s.sellPrice, stockCode: s.code }]);
+            setPicking(false);
+          }}
+          onClose={() => setPicking(false)}
+        />
+      )}
+      <div className="table-wrap">
+        <table className="tbl edit work-lines">
+          <thead>
+            <tr>
+              <th style={{ width: 62 }}>Вид</th>
+              <th style={{ width: "34%" }}>Описание</th>
+              <th>Механик / кат. №</th>
+              <th className="right" style={{ width: 80 }}>К-во</th>
+              <th style={{ width: 70 }}>Мярка</th>
+              <th className="right" style={{ width: 100 }}>Цена €</th>
+              <th className="right">Сума</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {labor.length === 0 && parts.length === 0 && (
+              <tr><td colSpan={8} className="muted small" style={{ padding: 14 }}>Още няма редове. Добавете труд и части{jobs && jobs.length ? " или изберете обичайна работа" : ""}.</td></tr>
+            )}
+            {labor.map((l, i) => (
+              <tr key={`l${i}`}>
+                <td><span className="kind labor">Труд</span></td>
+                <td><input value={l.description} onChange={(e) => setL(i, { description: e.target.value })} aria-label="Дейност" placeholder="Дейност" /></td>
+                <td><input value={l.mechanic} onChange={(e) => setL(i, { mechanic: e.target.value })} aria-label="Механик" placeholder="Механик" /></td>
+                <td><NumInput value={l.hours} onChange={(v) => setL(i, { hours: v })} label="Часове" /></td>
+                <td className="muted small">ч</td>
+                <td><input className="mono right" value={l.rate} onChange={(e) => setL(i, { rate: e.target.value })} aria-label="Ставка на час" /></td>
+                <td className="mono right nowrap">{euro(lineCents(l.rate, l.hours))}</td>
+                <td><button className="btn small icon-btn danger" aria-label="Премахни реда" onClick={() => onChange(labor.filter((_, j) => j !== i), parts)}><Icon name="trash" size={15} /></button></td>
+              </tr>
+            ))}
+            {parts.map((p, i) => (
+              <tr key={`p${i}`}>
+                <td><span className="kind part">Част</span></td>
+                <td>
+                  <input value={p.part} onChange={(e) => setP(i, { part: e.target.value })} aria-label="Част" placeholder="Част" />
+                  {p.stockCode && <StockNote line={p} item={byCode.get(p.stockCode)} known={!!stock} />}
+                </td>
+                <td><div className="cell-with-action"><input value={p.partNumber} onChange={(e) => setP(i, { partNumber: e.target.value })} aria-label="Марка или каталожен номер" placeholder="Марка / кат. №" /><RealOemPartLinks make={make} text={p.partNumber} /></div></td>
+                <td><NumInput value={p.quantity} onChange={(v) => setP(i, { quantity: v })} label="Количество" /></td>
+                <td><input value={p.unit} onChange={(e) => setP(i, { unit: e.target.value })} aria-label="Мярка" list="units" /></td>
+                <td><input className="mono right" value={p.price} onChange={(e) => setP(i, { price: e.target.value })} aria-label="Единична цена" /></td>
+                <td className="mono right nowrap">{euro(lineCents(p.price, p.quantity))}</td>
+                <td><button className="btn small icon-btn danger" aria-label="Премахни реда" onClick={() => onChange(labor, parts.filter((_, j) => j !== i))}><Icon name="trash" size={15} /></button></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <datalist id="units"><option value="бр." /><option value="л" /><option value="к-т" /><option value="м" /></datalist>
+    </section>
   );
 }

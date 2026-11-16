@@ -7,7 +7,7 @@ import { LinksCard } from "../components/Links";
 import { RealOemPartLinks } from "../components/RealOem";
 import { QuoteList } from "./Quotes";
 import { ScheduleTab } from "../components/Schedule";
-import { DeadlineBadge, Icon, Loading, Menu, Plate, StatusBadge, useLoad, useToast } from "../components/ui";
+import { Icon, Loading, Menu, Plate, StatusBadge, useLoad, useToast } from "../components/ui";
 import { date, euro, int, km, STATUS_LABEL, todayIso } from "../lib/format";
 import { buildHistory, HistoryEntry, HistoryKind } from "../lib/history";
 import { stageOf } from "../lib/stages";
@@ -100,17 +100,49 @@ export function CarPage() {
       )}
       {data.car.notes.trim() && <div className="note warn" style={{ whiteSpace: "pre-wrap" }}>{data.car.notes.trim()}</div>}
 
+      <section className="card car-summary" aria-label="Колата накратко">
+        <div className="car-chips">
+          {data.deadlines.map((d) => (
+            <span key={d.kind} className={`badge ${d.days < 0 ? "bad" : d.days <= 30 ? "warn" : "ok"}`} title={date(d.date)}>
+              {d.label} {d.days < 0 ? `изтекла ${date(d.date)}` : `до ${date(d.date)}`}
+            </span>
+          ))}
+          {dueItems.slice(0, 3).map((i) => (
+            <button key={i.schedule + i.operation} type="button" className={`badge ${i.status === "просрочено" ? "bad" : "info"} as-button`} onClick={() => setTab("schedule")}>
+              {i.operation} {i.kmLeft !== null ? (i.kmLeft < 0 ? `· с ${int(-i.kmLeft)} км над` : `· след ${int(i.kmLeft)} км`) : i.status === "просрочено" ? "· просрочено" : `· ${date(i.nextDate)}`}
+            </button>
+          ))}
+          {data.deadlines.length === 0 && <Link className="small" to={`/cars/${id}/edit`}>Добави ГТП, ГО и винетка</Link>}
+        </div>
+        <dl className="car-facts">
+          <div>
+            <dt>Пробег</dt>
+            <dd><strong>{km(data.usage.lastKm)}</strong> <button type="button" className="link-btn small" onClick={() => setTab("usage")}>запиши</button></dd>
+            {data.usage.recentPerMonth ? <dd className="small muted">≈ {int(data.usage.recentPerMonth)} км/месец</dd> : null}
+          </div>
+          <div><dt>Последно тук</dt><dd>{date(data.usage.lastDate)}</dd></div>
+          <div>
+            <dt>VIN</dt>
+            <dd className="mono small row" style={{ gap: 4 }}>
+              {c.vin || "—"}
+              {c.vin && <button className="btn small icon-btn" onClick={() => copy(c.vin, "VIN")} aria-label="Копирай VIN" title="Копирай VIN"><Icon name="copy" size={14} /></button>}
+            </dd>
+          </div>
+          {(c.paintCode || c.tyres) && <div><dt>Код боя · гуми</dt><dd>{[c.paintCode, c.tyres].filter(Boolean).join(" · ")}</dd></div>}
+          {(c.fuel || c.color) && <div><dt>Гориво · цвят</dt><dd>{[c.fuel, c.color].filter(Boolean).join(" · ")}</dd></div>}
+          {data.time && data.time.totalMinutes > 0 && <div><dt>Отработено</dt><dd>{formatMinutes(data.time.totalMinutes)} ч</dd></div>}
+          {c.pastOwners.length > 0 && <div><dt>Предишни собственици</dt><dd>{c.pastOwners.join(", ")}</dd></div>}
+        </dl>
+      </section>
+
       <div className="cols">
         <div className="wide stack-14">
-          <div className="row" style={{ justifyContent: "space-between" }}>
-            <h2>История</h2>
-            <div className="chips" role="tablist" aria-label="Покажи">
-              {tabs.map(([t, label, n]) => (
-                <button key={t} role="tab" aria-selected={tab === t} className={`chip ${tab === t ? "on" : ""}`} onClick={() => setTab(t)}>
-                  {label}{n !== null && <span className="chip-n">{n}</span>}
-                </button>
-              ))}
-            </div>
+          <div className="pill-tabs" role="tablist" aria-label="Раздели">
+            {tabs.map(([t, label, n]) => (
+              <button key={t} role="tab" aria-selected={tab === t} className={tab === t ? "on" : ""} onClick={() => setTab(t)}>
+                {label}{n ? ` ${n}` : ""}
+              </button>
+            ))}
           </div>
           {tab === "all" && <Timeline entries={history} carId={id} />}
           {tab === "orders" && <OrdersTab data={data} />}
@@ -137,59 +169,6 @@ export function CarPage() {
         </div>
 
         <aside className="narrow stack-14">
-          {data.schedule && (
-            <section className="card pad stack-8">
-              <div className="row" style={{ justifyContent: "space-between" }}>
-                <h3>Поддръжка</h3>
-                <button type="button" className="link-btn small" onClick={() => setTab("schedule")}>Целият график</button>
-              </div>
-              {dueItems.length === 0 ? (
-                <span className="muted small">Нищо не предстои скоро.</span>
-              ) : (
-                dueItems.slice(0, 5).map((i) => (
-                  <div key={i.schedule + i.operation} className="kv">
-                    <span>{i.operation}</span>
-                    <span className={`badge ${i.status === "просрочено" ? "bad" : "warn"}`}>
-                      {i.kmLeft !== null ? (i.kmLeft < 0 ? `с ${int(-i.kmLeft)} км над` : `след ${int(i.kmLeft)} км`) : i.status === "просрочено" ? "просрочено" : date(i.nextDate)}
-                    </span>
-                  </div>
-                ))
-              )}
-            </section>
-          )}
-          <section className="card pad stack-8">
-            <h3>Срокове</h3>
-            {data.deadlines.length === 0 ? <span className="muted small">Не са въведени. <Link to={`/cars/${id}/edit`}>Добави</Link></span> : data.deadlines.map((d) => (
-              <div key={d.kind} className="kv">
-                <span>{d.label} <span className="mono small muted">{date(d.date)}</span></span>
-                <DeadlineBadge label="" days={d.days} />
-              </div>
-            ))}
-          </section>
-          <section className="card pad stack-8">
-            <div className="row" style={{ justifyContent: "space-between" }}>
-              <h3>Пробег</h3>
-              <strong className="mono">{km(data.usage.lastKm)}</strong>
-            </div>
-            <span className="small muted">
-              {data.usage.recentPerMonth ? `≈ ${int(data.usage.recentPerMonth)} км/месец` : "Нужни са поне две отчитания."}
-              {data.usage.lastDate && ` · последно ${date(data.usage.lastDate)}`}
-            </span>
-            <button type="button" className="btn small" onClick={() => setTab("usage")}>Запиши показание</button>
-          </section>
-          <section className="card pad stack-8">
-            <h3>Данни</h3>
-            <div className="kv"><span className="muted">VIN</span>
-              <span className="mono small row" style={{ gap: 4 }}>
-                {c.vin || "—"}
-                {c.vin && <button className="btn small icon-btn" onClick={() => copy(c.vin, "VIN")} aria-label="Копирай VIN" title="Копирай VIN"><Icon name="copy" size={14} /></button>}
-              </span>
-            </div>
-            {(c.paintCode || c.tyres) && <div className="kv"><span className="muted">Код боя · гуми</span><span>{[c.paintCode, c.tyres].filter(Boolean).join(" · ")}</span></div>}
-            {(c.fuel || c.color) && <div className="kv"><span className="muted">Гориво · цвят</span><span>{[c.fuel, c.color].filter(Boolean).join(" · ")}</span></div>}
-            {data.time && data.time.totalMinutes > 0 && <div className="kv"><span className="muted">Отработено</span><span className="mono">{formatMinutes(data.time.totalMinutes)} ч</span></div>}
-            {c.pastOwners.length > 0 && <div className="kv"><span className="muted">Предишни собственици</span><span>{c.pastOwners.join(", ")}</span></div>}
-          </section>
           {features.links && <LinksCard links={data.links} car={c} onCopy={copy} />}
         </aside>
       </div>

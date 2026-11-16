@@ -42,7 +42,6 @@ export function Orders() {
   const nav = useNavigate();
   const toast = useToast();
   const features = useFeatures();
-  const search = useSearch();
   const [params, setParams] = useSearchParams();
   const { data, error, setData } = useLoad(() => api.listOrders(), []);
   const expectedLoad = useLoad(() => api.listExpected(), []);
@@ -52,6 +51,7 @@ export function Orders() {
   const tab: Tab = tabParam && ["shop", "unpaid", "all", "quotes"].includes(tabParam) ? tabParam : params.get("q") ? "all" : "shop";
   const [view, setViewState] = useState<View>(savedView);
   const [editing, setEditing] = useState<Expected | null>(null);
+  const [mechanic, setMechanic] = useState("");
   const setView = (v: View) => {
     setViewState(v);
     try {
@@ -73,9 +73,10 @@ export function Orders() {
     return data.filter((o) => {
       if (tab === "shop" && (stageOf(o.order.status) === "предадена" || isStaleReady(o.order, today))) return false;
       if (tab === "unpaid" && !(o.order.closedOn && !o.order.paid)) return false;
+      if (mechanic && o.order.mechanic.trim() !== mechanic) return false;
       return matches(q, [o.plate], [o.order.number, o.order.title, o.order.complaint, o.clientName, o.carName]);
     });
-  }, [data, q, tab, today]);
+  }, [data, q, tab, today, mechanic]);
 
   const expected = useMemo(
     () => (expectedLoad.data ?? []).filter((e) => matches(q, [e.plate], [e.client, e.phone, e.car, e.complaint])),
@@ -86,6 +87,8 @@ export function Orders() {
   const open = data.filter((o) => stageOf(o.order.status) !== "предадена" && !isStaleReady(o.order, today)).length;
   const stale = data.filter((o) => isStaleReady(o.order, today)).length;
   const unpaid = data.filter((o) => o.order.closedOn && !o.order.paid).length;
+  // Who works on the cars in the shop now: a filter when there is more than one.
+  const mechanics = [...new Set(data.filter((o) => stageOf(o.order.status) !== "предадена" && !isStaleReady(o.order, today)).map((o) => o.order.mechanic.trim()).filter(Boolean))].sort();
 
   async function move(id: string, status: OrderStatus) {
     const before = data;
@@ -104,42 +107,45 @@ export function Orders() {
 
   return (
     <div className="page">
-      <div className="page-head">
-        <div>
+      <div className="orders-bar">
+        <div className="row" style={{ gap: 14, alignItems: "baseline", flexWrap: "wrap" }}>
           <h1>Работни карти</h1>
-          <div className="muted">
-            {open} в сервиза{expectedLoad.data?.length ? ` · ${expectedLoad.data.length} очаквани` : ""} · {unpaid} неплатени · {data.length} общо
+          <div className="pill-tabs" role="tablist">
+            <button role="tab" aria-selected={tab === "shop"} className={tab === "shop" ? "on" : ""} onClick={() => setTab("shop")}>В сервиза {open}</button>
+            <button role="tab" aria-selected={tab === "unpaid"} className={tab === "unpaid" ? "on" : ""} onClick={() => setTab("unpaid")}>Неплатени {unpaid > 0 && <span className="bad-count">{unpaid}</span>}</button>
+            <button role="tab" aria-selected={tab === "all"} className={tab === "all" ? "on" : ""} onClick={() => setTab("all")}>Всички</button>
+            {features.quotes && <button role="tab" aria-selected={tab === "quotes"} className={tab === "quotes" ? "on" : ""} onClick={() => setTab("quotes")}>Оферти</button>}
           </div>
         </div>
-        <div className="row">
-          {tab === "shop" && (
-            <div className="seg" role="group" aria-label="Изглед">
-              <button type="button" aria-pressed={view === "board"} onClick={() => setView("board")}><Icon name="board" size={16} />Табло</button>
-              <button type="button" aria-pressed={view === "list"} onClick={() => setView("list")}><Icon name="list" size={16} />Списък</button>
-            </div>
-          )}
-          {!(tab === "shop" && view === "board") && (
-            <button type="button" className="btn" onClick={() => setEditing(emptyExpected())}><Icon name="phone" size={16} />Очакван</button>
-          )}
-          <button type="button" className="btn primary" onClick={() => search("intake")}><Icon name="plus" />Приеми кола</button>
-        </div>
-      </div>
-
-      <div className="tabs" role="tablist">
-        <button role="tab" aria-selected={tab === "shop"} className={tab === "shop" ? "on" : ""} onClick={() => setTab("shop")}>В сервиза <span className="muted">{open}</span></button>
-        <button role="tab" aria-selected={tab === "unpaid"} className={tab === "unpaid" ? "on" : ""} onClick={() => setTab("unpaid")}>Неплатени {unpaid > 0 && <span style={{ color: "var(--bad)" }}>{unpaid}</span>}</button>
-        <button role="tab" aria-selected={tab === "all"} className={tab === "all" ? "on" : ""} onClick={() => setTab("all")}>Всички</button>
-        {features.quotes && <button role="tab" aria-selected={tab === "quotes"} className={tab === "quotes" ? "on" : ""} onClick={() => setTab("quotes")}>Оферти и доклади</button>}
+        {tab !== "quotes" && (
+          <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+            <label className="search compact">
+              <Icon name="search" color="var(--muted)" size={16} />
+              <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Рег. номер, клиент, работа" aria-label="Търси работна карта" />
+            </label>
+            {tab === "shop" && mechanics.length > 1 && (
+              <div className="chip-group" role="group" aria-label="Механик">
+                <button type="button" aria-pressed={!mechanic} onClick={() => setMechanic("")}>Всички</button>
+                {mechanics.map((m) => <button key={m} type="button" aria-pressed={mechanic === m} onClick={() => setMechanic(mechanic === m ? "" : m)}>{m}</button>)}
+              </div>
+            )}
+            {!(tab === "shop" && view === "board") && (
+              <button type="button" className="btn" onClick={() => setEditing(emptyExpected())}><Icon name="phone" size={16} />Очакван</button>
+            )}
+            {tab === "shop" && (
+              <div className="seg icons" role="group" aria-label="Изглед">
+                <button type="button" aria-pressed={view === "board"} aria-label="Табло" title="Табло" onClick={() => setView("board")}><Icon name="board" size={16} /></button>
+                <button type="button" aria-pressed={view === "list"} aria-label="Списък" title="Списък" onClick={() => setView("list")}><Icon name="list" size={16} /></button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {tab === "quotes" ? (
         <QuotesPanel />
       ) : (
         <>
-          <label className="search">
-            <Icon name="search" color="var(--muted)" />
-            <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Номер, рег. номер, клиент, работа" aria-label="Търси работна карта" />
-          </label>
           {tab === "shop" && stale > 0 && (
             <div className="muted small">
               {stale} {stale === 1 ? "готова кола отпреди повече от месец не се показва" : "готови коли отпреди повече от месец не се показват"} тук – вероятно са взети.{" "}
@@ -279,36 +285,39 @@ function Board({
                     onPointerDown={(e) => drag.start(e, { kind: "order", id: o.order.id, label: o.plate || o.order.number })}
                     onClick={(e) => drag.wasDrag() && e.preventDefault()}
                   >
-                    <div className="row" style={{ justifyContent: "space-between" }}>
+                    <div className="kcard-top">
                       <Plate value={o.plate} />
-                      <span className="row" style={{ gap: 4 }}>
-                        <span className="mono small muted">{o.order.number}</span>
-                        <span onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
+                      {(() => {
+                        const t = timeInStage(o.order, now);
+                        const long = !!t && t.minutes >= LONG_IN_STAGE && s !== "готова";
+                        return (
+                          <span className={long ? "badge warn" : "small muted nowrap"} title="Откакто картата е в тази колона">
+                            {t ? `${t.approx ? "≈ " : ""}${formatDuration(t.minutes)}` : `от ${date(o.order.date)}`}
+                          </span>
+                        );
+                      })()}
+                    </div>
+                    <strong className="kcard-title" title={o.order.number}>{o.order.title || o.order.complaint || "Работна карта"}</strong>
+                    <div className="kcard-foot small">
+                      <span className="muted ellipsis">{[o.carName, o.clientName].filter(Boolean).join(" · ")}</span>
+                      <span className="row" style={{ gap: 4, flex: "none" }}>
+                        {o.order.mechanic && <span className="initials" title={o.order.mechanic}>{initials(o.order.mechanic)}</span>}
+                        <span onClick={(e) => { e.preventDefault(); e.stopPropagation(); }} onPointerDown={(e) => e.stopPropagation()}>
                           <Menu
-                            small
-                            label="Етап"
+                            dots
+                            label="Премести в друга колона"
                             items={stages.filter((x) => x !== s).map((x) => ({ label: `→ ${STATUS_LABEL[x]}`, onSelect: () => onMove(o.order.id, x) }))}
                           />
                         </span>
                       </span>
                     </div>
-                    <div>
-                      <strong>{o.order.title || o.order.complaint || "Работна карта"}</strong>
-                      <div className="small muted">{[o.carName, o.clientName].filter(Boolean).join(" · ")}</div>
-                    </div>
-                    <div className="kcard-foot small">
-                      <span className="muted">
-                        {o.order.mechanic || "без механик"} ·{" "}
-                        {(() => {
-                          const t = timeInStage(o.order, now);
-                          return t ? <span title="Откакто картата е в тази колона">{t.approx ? "≈ " : ""}{formatDuration(t.minutes)} тук</span> : `от ${date(o.order.date)}`;
-                        })()}
-                      </span>
-                      {o.order.closedOn && !o.order.paid ? <span className="badge bad">Неплатена</span> : o.order.closedOn ? <span className="badge ok">Приключена</span> : null}
-                    </div>
+                    {s === "готова" && o.clientPhone && (
+                      <a className="small kcard-call" href={`tel:${o.clientPhone}`} onClick={(e) => e.stopPropagation()}><Icon name="phone" size={13} /> {o.clientPhone}</a>
+                    )}
+                    {o.order.closedOn && !o.order.paid && <span className="badge bad" style={{ alignSelf: "flex-start" }}>Неплатена</span>}
                   </Link>
                 ))}
-                {cards.length === 0 && <div className="board-empty">Няма коли на този етап</div>}
+                {cards.length === 0 && <div className="board-empty">{s === "приета" ? "Пуснете тук очаквана кола или натиснете +" : "Плъзнете карта тук"}</div>}
               </section>
             );
           })}
@@ -319,9 +328,6 @@ function Board({
           {drag.dragging.label} {drag.over && drag.over !== "expected" ? `→ ${STATUS_LABEL[drag.over]}` : ""}
         </div>
       )}
-      <p className="muted small" style={{ margin: 0 }}>
-        Хванете карта и я пуснете в друга колона, за да смените етапа, или изберете от „Етап“ на картата. Очаквана кола, пусната в колона, се приема направо на този етап. С + на всяка колона приемате кола направо там. Предадените коли излизат от таблото – „Предай и приключи“ е в самата работна карта.
-      </p>
     </>
   );
 }
@@ -425,6 +431,16 @@ interface DragWhat {
  * browser's own drag and drop is not used: the window takes file drops
  * (PDFs onto a work order), which switches it off.
  */
+/** A card this long in one column gets a mark: it may be stuck. */
+const LONG_IN_STAGE = 2 * 24 * 60;
+
+/** "Георги Колев" → "ГК", "Иван" → "ИВ" */
+export function initials(name: string): string {
+  const w = name.trim().split(/\s+/).filter(Boolean);
+  if (w.length === 0) return "";
+  return (w.length === 1 ? w[0].slice(0, 2) : w[0][0] + w[1][0]).toUpperCase();
+}
+
 function useCardDrag(onDrop: (what: DragWhat, stage: OrderStatus) => void) {
   const [dragging, setDragging] = useState<DragWhat | null>(null);
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);

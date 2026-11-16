@@ -25,9 +25,7 @@ export function Dashboard() {
   const today = new Date().toLocaleDateString("bg-BG", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   const byStage = (s: string) => inShop.filter((o) => stageOf(o.order.status) === s);
   const ready = byStage("готова");
-  const waiting = byStage("чака_части");
   const reminders = reminderRows(data);
-  const toCall = reminders.filter((r) => !r.calledOn).length;
   const now = new Date();
   const forgotten = data.timers.filter((t) => entryMinutes(t, now) >= FORGOTTEN_MINUTES);
   const expectedSoon = data.expected.filter((e) => !e.date || e.date <= addDays(todayIso(), 1));
@@ -41,7 +39,7 @@ export function Dashboard() {
         </div>
         <div className="muted small">
           {inShop.length} {inShop.length === 1 ? "кола" : "коли"} в сервиза
-          {data.expected.length > 0 && ` · ${data.expected.length} очаквани`}
+          {expectedSoon.length > 0 && ` · ${expectedSoon.length} ${expectedSoon.length === 1 ? "идва" : "идват"}`}
         </div>
       </div>
       <BusinessQuestion />
@@ -61,36 +59,14 @@ export function Dashboard() {
         </div>
       )}
 
-      <section className="tiles">
-        <Link className="tile" to="/orders">
-          <span className="label">Готови за предаване</span>
-          <span className="value" style={{ color: ready.length ? "var(--ok)" : undefined }}>{ready.length}</span>
-          <span className="sub">{ready.length ? "обадете се на клиента" : "няма"}</span>
-        </Link>
-        <Link className="tile" to="/orders">
-          <span className="label">Чакат части</span>
-          <span className="value">{waiting.length}</span>
-          <span className="sub">{waiting.length ? `най-старата от ${date(waiting[0].order.date)}` : "няма"}</span>
-        </Link>
-        <Link className="tile" to="/orders?tab=unpaid">
-          <span className="label">Неплатено</span>
-          <span className="value" style={{ color: toCents(data.unpaid) ? "var(--bad)" : undefined }}>{euro(data.unpaid)}</span>
-          <span className="sub">по приключени карти</span>
-        </Link>
-        <a className="tile" href="#reminders">
-          <span className="label">За напомняне</span>
-          <span className="value">{toCall}</span>
-          <span className="sub">срокове и обслужване до 30 дни</span>
-        </a>
-      </section>
-
-      <div className="cols">
-        <div className="wide stack-18">
-          <InShop rows={inShop} timers={data.timers} />
-          {expectedSoon.length > 0 && <ExpectedSoon rows={expectedSoon} total={data.expected.length} />}
+      <div className="today">
+        <div className="today-days">
+          <Arriving rows={expectedSoon} total={data.expected.length} />
+          <InShop rows={inShop.filter((o) => stageOf(o.order.status) !== "готова")} timers={data.timers} />
+          <ToHandOver rows={ready} unpaid={data.unpaid} />
         </div>
 
-        <aside className="narrow stack-18">
+        <aside className="today-side">
           {(forgotten.length > 0 || data.lowStock.length > 0) && (
             <section className="card">
               <div className="card-head"><h2>Изисква внимание</h2></div>
@@ -134,95 +110,114 @@ function addDays(iso: string, n: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-// Ready cars first: those are the ones to act on.
-const SHOP_ORDER = ["готова", "в_ремонт", "чака_части", "диагностика", "приета"];
+// The cars being worked on, the furthest along first.
+const SHOP_ORDER = ["в_ремонт", "чака_части", "диагностика", "приета"];
+/** A car this long in one stage gets a mark: something may be stuck. */
+const LONG_IN_STAGE = 2 * 24 * 60;
 
-function InShop({ rows, timers }: { rows: OrderSummary[]; timers: Dashboard["timers"] }) {
-  const nav = useNavigate();
-  const now = useNow();
-  if (rows.length === 0) {
-    return (
-      <section className="card">
-        <div className="card-head"><h2>В сервиза</h2></div>
-        <div className="empty">Няма коли в сервиза. <Link to="/orders">Работни карти</Link></div>
-      </section>
-    );
-  }
+function DayHead({ title, tone, count, link }: { title: string; tone: string; count: number; link?: { to: string; label: string } }) {
   return (
-    <section className="card">
-      <div className="card-head">
-        <h2>В сервиза</h2>
-        <Link to="/orders">Табло на работните карти</Link>
-      </div>
-      {SHOP_ORDER.filter((s) => BOARD_STAGES.includes(s as never)).map((s) => {
-        const group = rows.filter((o) => stageOf(o.order.status) === s);
-        if (group.length === 0) return null;
-        return (
-          <div key={s}>
-            <div className={`stage-head stage-${s}`}>
-              <span className="dot" />
-              {s === "готова" ? "Готова – чака клиента" : STATUS_LABEL[s]} · {group.length}
+    <div className="day-head">
+      <h2><span className={`dot ${tone}`} />{title}</h2>
+      {link ? <Link to={link.to} className="small">{link.label}</Link> : <span className="small muted">{count}</span>}
+    </div>
+  );
+}
+
+function Arriving({ rows, total }: { rows: ExpectedRow[]; total: number }) {
+  const nav = useNavigate();
+  const toast = useToast();
+  const today = todayIso();
+  return (
+    <section className="card day-col" aria-label="Идват">
+      <DayHead title="Идват" tone="info" count={rows.length} link={total > rows.length ? { to: "/orders", label: `Всички ${total}` } : undefined} />
+      <div className="day-list">
+        {rows.length === 0 && <div className="day-empty">Никой не е казал, че идва днес или утре.</div>}
+        {rows.map((e) => (
+          <article key={e.id} className="day-card">
+            <div className="day-top">
+              <Plate value={e.plate} />
+              <strong className="small">{e.date ? `${e.date === today ? "" : e.date > today ? "утре " : date(e.date) + " "}${e.time || (e.date === today ? "днес" : "")}` : <span className="muted">без ден</span>}</strong>
             </div>
-            {group.map((o) => {
-              const running = timers.filter((t) => t.orderId === o.order.id);
-              return (
-                <div key={o.order.id} className="shop-row" onClick={() => nav(`/orders/${o.order.id}`)}>
-                  <div><Plate value={o.plate} /><div className="small muted">{o.carName}</div></div>
-                  <div className="grow">
-                    <Link to={`/orders/${o.order.id}`} className="row-title" onClick={(e) => e.stopPropagation()}>{o.order.title || o.order.complaint || "Работна карта"}</Link>
-                    <div className="small muted">{o.clientName} · <span className="mono">{o.order.number}</span></div>
-                  </div>
-                  <div className="small nowrap">
-                    {running.length > 0 ? (
-                      <span className="timer-chip"><span className="time-dot" />{running.map((t) => `${t.mechanic || "—"} ${formatMinutes(entryMinutes(t, now))}`).join(", ")}</span>
-                    ) : (
-                      <span className="muted">{o.order.mechanic}</span>
-                    )}
-                  </div>
-                  <div className="small nowrap right">
-                    {s === "готова" && o.clientPhone ? (
-                      <a href={`tel:${o.clientPhone}`} onClick={(e) => e.stopPropagation()}><Icon name="phone" size={14} /> {o.clientPhone}</a>
-                    ) : (
-                      <span className="muted">
-                        {(() => {
-                          const t = timeInStage(o.order, now);
-                          return t ? `${t.approx ? "≈ " : ""}${formatDuration(t.minutes)} на етапа` : `от ${date(o.order.date)}`;
-                        })()}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        );
-      })}
+            <strong>{e.complaint || "—"}</strong>
+            <div className="small muted">{[e.car, e.client].filter(Boolean).join(" · ")}</div>
+            <div className="row" style={{ gap: 6 }}>
+              <button type="button" className="btn small" onClick={() => receiveExpected(e, nav).catch((err) => toast(errorMessage(err), true))}>Приеми</button>
+              {e.phone && <a className="small" href={`tel:${e.phone}`}>{e.phone}</a>}
+            </div>
+          </article>
+        ))}
+      </div>
     </section>
   );
 }
 
-function ExpectedSoon({ rows, total }: { rows: ExpectedRow[]; total: number }) {
-  const nav = useNavigate();
-  const toast = useToast();
+function InShop({ rows, timers }: { rows: OrderSummary[]; timers: Dashboard["timers"] }) {
+  const now = useNow();
   return (
-    <section className="card">
-      <div className="card-head">
-        <h2>Очаквани днес и утре</h2>
-        <Link to="/orders">Всички очаквани ({total})</Link>
+    <section className="card day-col" aria-label="В сервиза">
+      <DayHead title="В сервиза" tone="accent" count={rows.length} link={{ to: "/orders", label: "Таблото" }} />
+      <div className="day-list flat">
+        {rows.length === 0 && <div className="day-empty">Няма коли в работа.</div>}
+        {SHOP_ORDER.filter((s) => BOARD_STAGES.includes(s as never)).map((s) => {
+          const group = rows.filter((o) => stageOf(o.order.status) === s);
+          if (group.length === 0) return null;
+          return (
+            <div key={s}>
+              <div className="day-group">{STATUS_LABEL[s]} · {group.length}</div>
+              {group.map((o) => {
+                const running = timers.filter((t) => t.orderId === o.order.id);
+                const t = timeInStage(o.order, now);
+                const long = !!t && t.minutes >= LONG_IN_STAGE;
+                return (
+                  <Link key={o.order.id} to={`/orders/${o.order.id}`} className="day-row">
+                    <div className="day-top">
+                      <Plate value={o.plate} />
+                      {running.length > 0 ? (
+                        <span className="timer-chip small"><span className="time-dot" />{running.map((x) => `${x.mechanic || "—"} ${formatMinutes(entryMinutes(x, now))}`).join(", ")}</span>
+                      ) : (
+                        <span className={long ? "badge warn" : "small muted"} title="Откакто е на този етап">{t ? `${t.approx ? "≈ " : ""}${formatDuration(t.minutes)}` : `от ${date(o.order.date)}`}</span>
+                      )}
+                    </div>
+                    <strong>{o.order.title || o.order.complaint || "Работна карта"}</strong>
+                    <span className="small muted">{[o.carName, o.order.mechanic || o.clientName].filter(Boolean).join(" · ")}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          );
+        })}
       </div>
-      {rows.map((e) => (
-        <div key={e.id} className="shop-row">
-          <div><Plate value={e.plate} /><div className="small muted">{e.car}</div></div>
-          <div className="grow">
-            <strong>{e.complaint || "—"}</strong>
-            <div className="small muted">{e.client}{e.phone && <> · <a href={`tel:${e.phone}`}>{e.phone}</a></>}</div>
+    </section>
+  );
+}
+
+function ToHandOver({ rows, unpaid }: { rows: OrderSummary[]; unpaid: string }) {
+  return (
+    <section className="card day-col" aria-label="За предаване">
+      <DayHead title="За предаване" tone="ok" count={rows.length} />
+      <div className="day-list">
+        {rows.length === 0 && <div className="day-empty">Няма готови коли.</div>}
+        {rows.map((o) => (
+          <article key={o.order.id} className="day-card ready">
+            <div className="day-top">
+              <Plate value={o.plate} />
+              <strong className="small">{euro(o.totals.total)}</strong>
+            </div>
+            <strong>{o.order.title || o.order.complaint || "Работна карта"}</strong>
+            <div className="small muted">{[o.carName, o.clientName].filter(Boolean).join(" · ")}</div>
+            <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
+              {o.clientPhone && <a className="btn small call" href={`tel:${o.clientPhone}`}><Icon name="phone" size={14} />{o.clientPhone}</a>}
+              <Link className="btn small" to={`/orders/${o.order.id}`}>Предай</Link>
+            </div>
+          </article>
+        ))}
+        {toCents(unpaid) > 0 && (
+          <div className="small muted day-note">
+            {euro(unpaid)} неплатени по приключени карти – <Link to="/orders?tab=unpaid">виж ги</Link>
           </div>
-          <div className="small nowrap">{e.date ? `${e.date === todayIso() ? "днес" : date(e.date)} ${e.time}` : <span className="muted">без ден</span>}</div>
-          <div className="right">
-            <button type="button" className="btn small" onClick={() => receiveExpected(e, nav).catch((err) => toast(errorMessage(err), true))}>Приеми</button>
-          </div>
-        </div>
-      ))}
+        )}
+      </div>
     </section>
   );
 }
