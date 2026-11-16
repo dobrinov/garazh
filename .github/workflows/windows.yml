@@ -57,6 +57,19 @@ jobs:
           }
           EOF
 
+      # The notes are the whole changelog, so an app several versions behind
+      # can show everything it is about to get.
+      - name: Release notes from CHANGELOG.md
+        if: startsWith(github.ref, 'refs/tags/v')
+        id: notes
+        shell: bash
+        run: |
+          {
+            echo "body<<GARAZH_NOTES_END"
+            node scripts/release-notes.mjs
+            echo "GARAZH_NOTES_END"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Build, sign and create a draft release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: tauri-apps/tauri-action@v0
@@ -67,9 +80,7 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: Гараж ${{ github.ref_name }}
-          releaseBody: |
-            Какво ново в тази версия:
-            -
+          releaseBody: ${{ steps.notes.outputs.body }}
           releaseDraft: true
           includeUpdaterJson: true
           # Installs are made with the setup .exe; make it the default update.

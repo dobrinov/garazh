@@ -1,7 +1,7 @@
 import { NavLink, Outlet } from "react-router-dom";
 import { BrandMark, useBrand } from "./brand";
 import { useFeatures } from "./features";
-import { UpdateBanner } from "./updates";
+import { UpdateBanner, UpdatedNotice } from "./updates";
 import { Icon } from "./ui";
 
 const NAV = [
@@ -46,6 +46,7 @@ export function Layout() {
       </nav>
       <main className="main">
         <UpdateBanner />
+        <UpdatedNotice />
         <Outlet />
       </main>
     </div>

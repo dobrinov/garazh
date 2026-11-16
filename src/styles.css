@@ -228,7 +228,12 @@ dl.facts dd { margin: 2px 0 0; font-weight: 600; }
 .update-title { font-weight: 700; }
 .update-sub { color: #b4b8c1; font-size: 13px; }
 .update-error { color: #fca5a5; }
-.update-notes { font-size: 13px; color: #d4d6db; white-space: pre-wrap; max-height: 200px; overflow: auto; }
+.update-notes { font-size: 13px; color: #d4d6db; white-space: pre-wrap; max-height: 260px; overflow: auto; }
+.update-notes:has(.change-release) { white-space: normal; display: flex; flex-direction: column; gap: 10px; }
+.change-version { font-weight: 700; color: #fff; }
+.change-date { font-weight: 400; color: #9ea3ae; }
+.change-release ul { margin: 4px 0 0; padding-left: 18px; line-height: 1.5; }
+.update-banner.done { border-bottom-color: #16a34a; }
 .update-banner .btn.ghost { color: #d4d6db; }
 .update-bar { height: 6px; border-radius: 3px; background: #3b404c; overflow: hidden; }
 .update-bar > div { height: 100%; background: var(--accent); transition: width .2s; }

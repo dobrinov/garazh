@@ -3,6 +3,8 @@ import { relaunch } from "@tauri-apps/plugin-process";
 import { check, Update } from "@tauri-apps/plugin-updater";
 import { createContext, ReactNode, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { api, errorMessage } from "../api";
+import { changesBetween, compareVersions, parseChangelog, Release } from "../lib/changelog";
+import changelogText from "../../CHANGELOG.md?raw";
 
 type Status = "idle" | "checking" | "none" | "available" | "downloading" | "restarting" | "error" | "unconfigured";
 
@@ -96,6 +98,8 @@ export function UpdatesProvider({ auto, backupConfigured, children }: { auto: bo
         if (!window.confirm(`Архивът преди обновяване не успя: ${errorMessage(e)}\n\nДа продължи ли обновяването?`)) return;
       }
     }
+    // After the restart the app shows what changed since this version.
+    rememberSeen(current);
     setStatus("downloading");
     setProgress(0);
     let total = 0;
@@ -116,7 +120,7 @@ export function UpdatesProvider({ auto, backupConfigured, children }: { auto: bo
       setStatus("error");
       setError(errorMessage(e));
     }
-  }, [update, backupConfigured]);
+  }, [update, backupConfigured, current]);
 
   return (
     <Ctx.Provider value={{ current, status, update, progress, error, lastChecked, checkNow: () => run(false), install }}>
@@ -154,6 +158,9 @@ export function UpdateBanner() {
   if (!u.update || !["available", "downloading", "restarting", "error"].includes(u.status)) return null;
   const version = u.update.version;
   if (u.status === "available" && snoozed(version)) return null;
+  // The release notes carry the whole changelog; show what is new since the installed version.
+  const changes = u.current ? changesBetween(parseChangelog(u.update.body), u.current, version) : [];
+  const hasNotes = changes.length > 0 || !!u.update.body?.trim();
 
   function later() {
     try {
@@ -178,7 +185,7 @@ export function UpdateBanner() {
         </div>
         {u.status === "available" && (
           <div className="row" style={{ gap: 6 }}>
-            {u.update.body && <button className="btn small ghost" onClick={() => setOpen(!open)}>{open ? "Скрий" : "Какво ново"}</button>}
+            {hasNotes && <button className="btn small ghost" onClick={() => setOpen(!open)}>{open ? "Скрий промените" : "Какво ново"}</button>}
             <button className="btn small ghost" onClick={later}>По-късно</button>
             <button className="btn small primary" onClick={u.install}>Обнови сега</button>
           </div>
@@ -188,7 +195,81 @@ export function UpdateBanner() {
       {u.status === "downloading" && (
         <div className="update-bar" aria-label="Изтегляне"><div style={{ width: `${Math.round((u.progress ?? 0.5) * 100)}%` }} className={u.progress === null ? "indeterminate" : ""} /></div>
       )}
-      {open && u.status === "available" && u.update.body && <div className="update-notes">{u.update.body}</div>}
+      {open && u.status === "available" && (changes.length > 0 ? <ChangeList releases={changes} /> : <div className="update-notes">{u.update.body}</div>)}
+    </div>
+  );
+}
+
+/** Versions with their changes, newest first. */
+export function ChangeList({ releases }: { releases: Release[] }) {
+  return (
+    <div className="update-notes">
+      {releases.map((r) => (
+        <div key={r.version} className="change-release">
+          <div className="change-version">Версия {r.version}{r.date && <span className="change-date"> · {r.date}</span>}</div>
+          <ul>
+            {r.items.map((it, i) => <li key={i}>{it}</li>)}
+          </ul>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+const SEEN_KEY = "garazh.seenVersion";
+
+function readSeen(): string | null {
+  try {
+    return localStorage.getItem(SEEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function rememberSeen(version: string) {
+  if (!version) return;
+  try {
+    localStorage.setItem(SEEN_KEY, version);
+  } catch {
+    /* the note after the next update just will not show */
+  }
+}
+
+/**
+ * Once after an update: what changed since the version that was installed
+ * before, from the CHANGELOG.md built into this version. A first install
+ * shows nothing and only remembers the version.
+ */
+export function UpdatedNotice() {
+  const { current } = useUpdates();
+  const [seen, setSeen] = useState<string | null | undefined>(undefined);
+  useEffect(() => {
+    if (!current) return;
+    const s = readSeen();
+    if (!s) rememberSeen(current);
+    setSeen(s ?? current);
+  }, [current]);
+  const newer = !!current && !!seen && compareVersions(current, seen) > 0;
+  const changes = newer ? changesBetween(parseChangelog(changelogText), seen!, current) : [];
+  // Updated, but nothing written down for it: just remember the version.
+  useEffect(() => {
+    if (newer && changes.length === 0) rememberSeen(current);
+  }, [newer, changes.length, current]);
+  function close() {
+    rememberSeen(current);
+    setSeen(current);
+  }
+  if (!newer || changes.length === 0) return null;
+  return (
+    <div className="update-banner done" role="status">
+      <div className="update-banner-row">
+        <div className="grow">
+          <div className="update-title">Гараж е обновен до версия {current}</div>
+          <div className="update-sub">Ето какво е новото от версия {seen} насам.</div>
+        </div>
+        <button className="btn small primary" onClick={close}>Разбрах</button>
+      </div>
+      <ChangeList releases={changes} />
     </div>
   );
 }
