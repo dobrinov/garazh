@@ -627,6 +627,33 @@ impl Store {
         self.reload(&dir, ORDER_FILE)
     }
 
+    /// Take the stock-picked parts of a closed work order off the shelf, once.
+    /// Returns codes that were no longer in stock.
+    pub fn take_stock(&self, id: &str) -> Result<Vec<String>> {
+        let scan = self.scan()?;
+        let mut order = self.find_order(&scan, id)?;
+        if order.data.stockTaken || order.data.closedOn.is_none() {
+            return Ok(vec![]);
+        }
+        let used: Vec<(String, f64)> = order
+            .data
+            .parts
+            .iter()
+            .filter(|p| !p.stockCode.trim().is_empty() && p.quantity > 0.0)
+            .map(|p| (p.stockCode.trim().to_string(), p.quantity))
+            .collect();
+        let date = order.data.closedOn.clone().unwrap_or_else(today);
+        let missing = crate::stock::Stock::new(&self.root).take(&used, &order.data.number, &date)?;
+        order.data.stockTaken = true;
+        let dir = PathBuf::from(&order.dir);
+        self.write_record(&dir.join(ORDER_FILE), &order.data, &order.notes, None)?;
+        Ok(missing)
+    }
+
+    pub fn root(&self) -> &Path {
+        &self.root
+    }
+
     // ---------- shop logo ----------
 
     /// Copy an image into the data folder as the shop's logo, replacing the old one.
@@ -1013,7 +1040,7 @@ mod tests {
                     title: "Обслужване".into(),
                     mileage: Some(204_120),
                     parts: vec![
-                        PartLine { part: "Маслен филтър".into(), partNumber: "HU 6008/1 z".into(), quantity: 1.0, unit: "бр.".into(), price: Money(1100) },
+                        PartLine { part: "Маслен филтър".into(), partNumber: "HU 6008/1 z".into(), quantity: 1.0, unit: "бр.".into(), price: Money(1100), ..Default::default() },
                         PartLine { part: "Масло 5W-30".into(), quantity: 4.6, unit: "л".into(), price: Money(1130), ..Default::default() },
                     ],
                     ..Default::default()
@@ -1037,6 +1064,41 @@ mod tests {
         let closed = s.order(&wo.data.id).unwrap();
         assert!(closed.data.historyWritten);
         assert_eq!(closed.data.status, "готова");
+    }
+
+    #[test]
+    fn stock_is_taken_once_when_the_order_closes() {
+        let (_t, s) = store();
+        let stock = crate::stock::Stock::new(&s.root);
+        stock.save(crate::stock::StockItem { part: "Маслен филтър".into(), quantity: 5.0, ..Default::default() }, None, "2026-11-01").unwrap();
+        let c = new_client(&s, "Иван");
+        let car = new_car(&s, &c.data.id, "СА 4821 КН");
+        let wo = s
+            .save_order(SaveInput {
+                data: WorkOrder {
+                    carId: car.data.id.clone(),
+                    date: "2026-11-16".into(),
+                    parts: vec![
+                        PartLine { part: "Маслен филтър".into(), quantity: 2.0, stockCode: "С0001".into(), ..Default::default() },
+                        PartLine { part: "Чистачки".into(), quantity: 1.0, ..Default::default() },
+                    ],
+                    ..Default::default()
+                },
+                ..Default::default()
+            })
+            .unwrap();
+        assert!(s.take_stock(&wo.data.id).unwrap().is_empty(), "not before closing");
+        assert_eq!(stock.items()[0].quantity, 5.0);
+        s.close_order(&wo.data.id).unwrap();
+        s.take_stock(&wo.data.id).unwrap();
+        s.take_stock(&wo.data.id).unwrap();
+        assert_eq!(stock.items()[0].quantity, 3.0);
+        let o = s.order(&wo.data.id).unwrap();
+        assert!(o.data.stockTaken);
+        assert_eq!(o.data.parts[0].stockCode, "С0001");
+        let text = read_text(&PathBuf::from(&o.dir).join(ORDER_FILE)).unwrap();
+        assert!(text.contains("склад_код: С0001") && text.contains("изписано_от_склада: true"), "{text}");
+        assert_eq!(text.matches("склад_код").count(), 1, "empty codes are not written");
     }
 
     #[test]

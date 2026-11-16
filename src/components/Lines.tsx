@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { LaborLine, Money, PartLine } from "../api";
+import { LaborLine, Money, PartLine, StockItem } from "../api";
 import { euro } from "../lib/format";
 import { lineCents } from "../lib/totals";
+import { formatQty } from "../lib/stock";
 import { RealOemPartLinks } from "./RealOem";
 import { Icon } from "./ui";
 
@@ -58,7 +59,25 @@ export function LaborTable({ title, lines, onChange, rate, mechanic = "" }: { ti
   );
 }
 
-export function PartsTable({ title, hint, lines, onChange, make }: { title: string; hint?: string; lines: PartLine[]; onChange: (l: PartLine[]) => void; /** The car's make: BMW part numbers then link to RealOEM. */ make?: string }) {
+export function PartsTable({
+  title,
+  hint,
+  lines,
+  onChange,
+  make,
+  stock,
+}: {
+  title: string;
+  hint?: string;
+  lines: PartLine[];
+  onChange: (l: PartLine[]) => void;
+  /** The car's make: BMW part numbers then link to RealOEM. */
+  make?: string;
+  /** When stock is on: parts can be picked from it. */
+  stock?: StockItem[];
+}) {
+  const [picking, setPicking] = useState(false);
+  const byCode = new Map((stock ?? []).map((s) => [s.code, s]));
   return (
     <section className="card">
       <div className="card-head">
@@ -66,8 +85,21 @@ export function PartsTable({ title, hint, lines, onChange, make }: { title: stri
           <h2>{title}</h2>
           {hint && <div className="small muted">{hint}</div>}
         </div>
-        <button className="btn small" onClick={() => onChange([...lines, { part: "", partNumber: "", quantity: 1, unit: "бр.", price: "0.00" }])}>+ Част</button>
+        <div className="row" style={{ gap: 6 }}>
+          {stock && <button className="btn small" onClick={() => setPicking(!picking)}><Icon name="box" size={14} />От склада</button>}
+          <button className="btn small" onClick={() => onChange([...lines, { part: "", partNumber: "", quantity: 1, unit: "бр.", price: "0.00" }])}>+ Част</button>
+        </div>
       </div>
+      {stock && picking && (
+        <StockPicker
+          stock={stock}
+          onPick={(s) => {
+            onChange([...lines, { part: s.part, partNumber: s.partNumber, quantity: 1, unit: s.unit || "бр.", price: s.sellPrice, stockCode: s.code }]);
+            setPicking(false);
+          }}
+          onClose={() => setPicking(false)}
+        />
+      )}
       <div className="table-wrap">
         <table className="tbl edit">
           <thead><tr><th style={{ width: "32%" }}>Част</th><th>Марка / кат. №</th><th className="right">К-во</th><th>Мярка</th><th className="right">Ед. цена €</th><th className="right">Сума</th><th /></tr></thead>
@@ -77,7 +109,10 @@ export function PartsTable({ title, hint, lines, onChange, make }: { title: stri
               const set = (patch: Partial<PartLine>) => onChange(lines.map((x, j) => (j === i ? { ...x, ...patch } : x)));
               return (
                 <tr key={i}>
-                  <td><input value={p.part} onChange={(e) => set({ part: e.target.value })} aria-label="Част" /></td>
+                  <td>
+                    <input value={p.part} onChange={(e) => set({ part: e.target.value })} aria-label="Част" />
+                    {p.stockCode && <StockNote line={p} item={byCode.get(p.stockCode)} known={!!stock} />}
+                  </td>
                   <td><div className="cell-with-action"><input value={p.partNumber} onChange={(e) => set({ partNumber: e.target.value })} aria-label="Марка или каталожен номер" /><RealOemPartLinks make={make} text={p.partNumber} /></div></td>
                   <td style={{ width: 90 }}><NumInput value={p.quantity} onChange={(v) => set({ quantity: v })} label="Количество" /></td>
                   <td style={{ width: 80 }}><input value={p.unit} onChange={(e) => set({ unit: e.target.value })} aria-label="Мярка" list="units" /></td>
@@ -92,6 +127,59 @@ export function PartsTable({ title, hint, lines, onChange, make }: { title: stri
       </div>
       <datalist id="units"><option value="бр." /><option value="л" /><option value="к-т" /><option value="м" /></datalist>
     </section>
+  );
+}
+
+function StockNote({ line, item, known }: { line: PartLine; item?: StockItem; known: boolean }) {
+  if (!known) return <div className="small muted stock-note">от склада, {line.stockCode}</div>;
+  if (!item) return <div className="small stock-note" style={{ color: "var(--bad)" }}>{line.stockCode} – вече не е в склада</div>;
+  const short = line.quantity > item.quantity;
+  return (
+    <div className="small stock-note" style={{ color: short ? "var(--bad)" : undefined }}>
+      {item.code} · в склада {formatQty(item.quantity)}&nbsp;{item.unit}{short && " – не стига"}
+    </div>
+  );
+}
+
+function StockPicker({ stock, onPick, onClose }: { stock: StockItem[]; onPick: (s: StockItem) => void; onClose: () => void }) {
+  const [q, setQ] = useState("");
+  const t = q.trim().toLowerCase();
+  const found = stock.filter((s) => !t || `${s.code} ${s.part} ${s.partNumber}`.toLowerCase().includes(t)).slice(0, 12);
+  return (
+    <div className="stock-picker">
+      <label className="search">
+        <Icon name="search" color="var(--muted)" />
+        <input
+          autoFocus
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") onClose();
+            if (e.key === "Enter" && found[0]) {
+              e.preventDefault();
+              onPick(found[0]);
+            }
+          }}
+          placeholder="Търси в склада: част, кат. №, код"
+          aria-label="Търси в склада"
+        />
+      </label>
+      {stock.length === 0 ? (
+        <div className="small muted">Складът е празен.</div>
+      ) : found.length === 0 ? (
+        <div className="small muted">Няма съвпадения.</div>
+      ) : (
+        <div className="stock-picker-list">
+          {found.map((s) => (
+            <button key={s.code} type="button" className="stock-picker-row" onClick={() => onPick(s)}>
+              <span><strong>{s.part}</strong> <span className="small muted">{s.partNumber}</span></span>
+              <span className="small mono nowrap" style={{ color: s.quantity <= 0 ? "var(--bad)" : undefined }}>{formatQty(s.quantity)} {s.unit}</span>
+              <span className="small mono nowrap right">{euro(s.sellPrice)}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 

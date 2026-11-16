@@ -202,6 +202,9 @@ pub struct PartLine {
     pub quantity: f64,
     pub unit: String,
     pub price: Money,
+    /// Set when the part was picked from stock (Склад).
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub stockCode: String,
 }
 
 pub const STATUS_DELIVERED: &str = "предадена";
@@ -229,6 +232,9 @@ pub struct WorkOrder {
     pub paid: bool,
     pub closedOn: Option<String>,
     pub historyWritten: bool,
+    /// Parts picked from stock have been taken off the shelf (once, on closing).
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub stockTaken: bool,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
 }

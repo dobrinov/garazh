@@ -18,6 +18,7 @@ import { QuotePage } from "./pages/QuotePage";
 import { Quotes } from "./pages/Quotes";
 import { Settings } from "./pages/Settings";
 import { Setup } from "./pages/Setup";
+import { Stock } from "./pages/Stock";
 import { TimeReport } from "./pages/TimeReport";
 import { WorkOrderPage } from "./pages/WorkOrderPage";
 
@@ -69,6 +70,7 @@ export function App() {
               <Route path="quotes/new" element={<QuotePage />} />
               <Route path="quotes/:id" element={<QuotePage />} />
               <Route path="time" element={<TimeReport />} />
+              <Route path="stock" element={<Stock />} />
               <Route
                 path="settings"
                 element={<Settings config={config} onConfig={setConfig} onFeatures={setFeatures} />}

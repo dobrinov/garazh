@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { api, Car, Client, emptyOrder, errorMessage, FileInfo, isConflict, Shop, Usage, WorkOrder } from "../api";
+import { api, StockItem, Car, Client, emptyOrder, errorMessage, FileInfo, isConflict, Shop, Usage, WorkOrder } from "../api";
 import { FaultCodes } from "../components/FaultCodes";
 import { useBrand } from "../components/brand";
 import { useFeatures } from "../components/features";
@@ -35,6 +35,10 @@ export function WorkOrderPage() {
   const [busy, setBusy] = useState(false);
   const [tick, setTick] = useState(0);
   const features = useFeatures();
+  const [stock, setStock] = useState<StockItem[] | null>(null);
+  useEffect(() => {
+    if (features.stock) api.stockList().then(setStock).catch(() => setStock([]));
+  }, [features.stock]);
 
   useEffect(() => {
     let alive = true;
@@ -210,7 +214,7 @@ export function WorkOrderPage() {
             <section className="card pad muted">Запазете картата, за да пуснете таймер за отработено време.</section>
           ))}
 
-          <PartsTable title="Части и консумативи" hint="При приключване се записват в историята на колата с пробега от приемането." lines={order.parts} onChange={(parts) => update({ parts })} make={ctx.car.make} />
+          <PartsTable title="Части и консумативи" hint={`При приключване се записват в историята на колата с пробега от приемането${features.stock ? ", а частите от склада се изписват" : ""}.`} lines={order.parts} onChange={(parts) => update({ parts })} make={ctx.car.make} stock={features.stock ? stock ?? [] : undefined} />
 
           <section className="card pad">
             <h2 style={{ marginBottom: 12 }}>Диагностика и файлове</h2>

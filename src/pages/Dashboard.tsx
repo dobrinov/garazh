@@ -4,6 +4,7 @@ type Dashboard = DashboardData;
 import { DeadlineBadge, Icon, Loading, Plate, StatusBadge, useLoad } from "../components/ui";
 import { date, euro, int, todayIso } from "../lib/format";
 import { entryMinutes, formatMinutes } from "../lib/time";
+import { formatQty } from "../lib/stock";
 
 export function Dashboard() {
   const nav = useNavigate();
@@ -41,6 +42,16 @@ export function Dashboard() {
       )}
 
       {data.timers.length > 0 && <RunningTimers rows={data.timers} />}
+      {data.lowStock.length > 0 && (
+        <div className="note warn row" style={{ justifyContent: "space-between" }}>
+          <span>
+            <strong>За поръчка: {data.lowStock.length} {data.lowStock.length === 1 ? "артикул" : "артикула"}</strong> –{" "}
+            {data.lowStock.slice(0, 4).map((i) => `${i.part} (${formatQty(i.quantity)} ${i.unit})`).join(", ")}
+            {data.lowStock.length > 4 && " и още"}
+          </span>
+          <Link to="/stock">Към склада</Link>
+        </div>
+      )}
 
       <section className="stats">
         <div className="card stat"><div className="label">В сервиза сега</div><div className="value">{data.inShop.length}</div></div>

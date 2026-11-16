@@ -11,6 +11,7 @@ const NAV = [
   { to: "/orders", label: "Работни карти", icon: "order" },
   { to: "/quotes", label: "Оферти и доклади", icon: "quote", feature: "quotes" as const },
   { to: "/time", label: "Отработено време", icon: "clock", feature: "timeTracking" as const },
+  { to: "/stock", label: "Склад", icon: "box", feature: "stock" as const },
 ];
 
 export function Layout() {

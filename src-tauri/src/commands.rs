@@ -6,6 +6,7 @@ use crate::faultcodes::{self, FaultScan};
 use crate::links::{self, Link};
 use crate::schedule::{self, CarSchedule, ManualDone};
 use crate::timelog::{self, TimeEntry, TimeLog};
+use crate::stock::{Stock, StockItem, StockMove};
 use crate::vin::{self, VinResult};
 use crate::config::AppConfig;
 use crate::model::*;
@@ -199,6 +200,8 @@ pub struct DashboardData {
     pub maintenance: Vec<MaintenanceRow>,
     /// Timers running now (time tracking on), oldest first.
     pub timers: Vec<TimeRow>,
+    /// Stock at or below its minimum (stock on).
+    pub lowStock: Vec<StockItem>,
 }
 
 /// One time entry with its work order and car, for the dashboard and the report.
@@ -281,7 +284,8 @@ pub fn dashboard(state: State<AppState>) -> R<DashboardData> {
         timers = time_rows(&scan).into_iter().filter(|r| r.entry.running()).collect();
         timers.sort_by(|a, b| a.entry.date.cmp(&b.entry.date).then(a.entry.start.cmp(&b.entry.start)));
     }
-    Ok(DashboardData { base, maintenance, timers })
+    let lowStock = if feature_on(&features(&st), "stock") { Stock::new(st.root()).items().into_iter().filter(|i| i.low()).collect() } else { vec![] };
+    Ok(DashboardData { base, maintenance, timers, lowStock })
 }
 
 /// The schedule for one car; None when its last reading is too old.
@@ -478,7 +482,44 @@ pub fn time_remove(state: State<AppState>, id: String, entry: TimeEntry) -> R<Ti
 #[tauri::command]
 pub fn close_order(state: State<AppState>, id: String) -> R<Loaded<WorkOrder>> {
     let _g = state.write_lock.lock().unwrap();
-    Ok(store(&state)?.close_order(&id)?)
+    let st = store(&state)?;
+    let closed = st.close_order(&id)?;
+    if feature_on(&features(&st), "stock") && closed.data.parts.iter().any(|p| !p.stockCode.is_empty()) && !closed.data.stockTaken {
+        st.take_stock(&id)?;
+        return Ok(st.order(&id)?);
+    }
+    Ok(closed)
+}
+
+// ---------- stock (optional) ----------
+
+#[tauri::command]
+pub fn stock_list(state: State<AppState>) -> R<Vec<StockItem>> {
+    Ok(Stock::new(store(&state)?.root()).items())
+}
+
+#[tauri::command]
+pub fn stock_moves(state: State<AppState>) -> R<Vec<StockMove>> {
+    Ok(Stock::new(store(&state)?.root()).moves())
+}
+
+#[tauri::command]
+pub fn stock_save(state: State<AppState>, item: StockItem, original: Option<String>) -> R<Vec<StockItem>> {
+    let _g = state.write_lock.lock().unwrap();
+    Ok(Stock::new(store(&state)?.root()).save(item, original.as_deref(), &store::today())?)
+}
+
+/// Delivery (+) or correction (+/−).
+#[tauri::command]
+pub fn stock_change(state: State<AppState>, code: String, change: f64, reason: String, buyPrice: Option<Money>) -> R<Vec<StockItem>> {
+    let _g = state.write_lock.lock().unwrap();
+    Ok(Stock::new(store(&state)?.root()).change(&code, change, &reason, &store::today(), buyPrice)?)
+}
+
+#[tauri::command]
+pub fn stock_remove(state: State<AppState>, code: String) -> R<Vec<StockItem>> {
+    let _g = state.write_lock.lock().unwrap();
+    Ok(Stock::new(store(&state)?.root()).remove(&code)?)
 }
 
 // ---------- documents ----------
@@ -505,6 +546,11 @@ pub fn record_dir(state: State<AppState>, kind: String, id: String) -> R<String>
         "car" => st.car(&id)?.dir,
         "order" => st.order(&id)?.dir,
         "root" => st.root.to_string_lossy().to_string(),
+        "stock" => {
+            let d = Stock::new(st.root()).dir().to_path_buf();
+            std::fs::create_dir_all(&d)?;
+            d.to_string_lossy().to_string()
+        }
         _ => return Err(StoreError::Invalid(format!("непознат вид: {kind}")).into()),
     };
     Ok(dir)

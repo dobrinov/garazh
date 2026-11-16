@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../api";
 import { Icon, Loading, Plate, StatusBadge, useLoad } from "../components/ui";
 import { date, euro, matches } from "../lib/format";
@@ -9,8 +9,10 @@ type Filter = "open" | "unpaid" | "all";
 export function Orders() {
   const nav = useNavigate();
   const { data, error } = useLoad(() => api.listOrders(), []);
-  const [q, setQ] = useState("");
-  const [filter, setFilter] = useState<Filter>("open");
+  const [params] = useSearchParams();
+  // ?q=РК-… (e.g. from the stock movements) searches all work orders.
+  const [q, setQ] = useState(params.get("q") ?? "");
+  const [filter, setFilter] = useState<Filter>(params.get("q") ? "all" : "open");
 
   const rows = useMemo(() => {
     if (!data) return [];

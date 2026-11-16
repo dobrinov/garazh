@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { api, Car, Client, emptyQuote, errorMessage, FileInfo, isConflict, Quote, QuoteKind, Shop } from "../api";
+import { api, StockItem, Car, Client, emptyQuote, errorMessage, FileInfo, isConflict, Quote, QuoteKind, Shop } from "../api";
 import { FaultCodes } from "../components/FaultCodes";
 import { useBrand } from "../components/brand";
 import { useFeatures } from "../components/features";
@@ -33,6 +33,10 @@ export function QuotePage() {
   const nav = useNavigate();
   const toast = useToast();
   const features = useFeatures();
+  const [stock, setStock] = useState<StockItem[] | null>(null);
+  useEffect(() => {
+    if (features.stock) api.stockList().then(setStock).catch(() => setStock([]));
+  }, [features.stock]);
   const [q, setQ] = useState<Quote | null>(null);
   const [notes, setNotes] = useState("");
   const [hash, setHash] = useState<string | null>(null);
@@ -257,7 +261,7 @@ export function QuotePage() {
             onChange={(labor) => update({ labor })}
             rate={ctx.shop.laborRate}
           />
-          <PartsTable title={isQuote ? "Части" : q.kind === "доклад" ? "Сменени части" : "Препоръчани части"} lines={q.parts} onChange={(parts) => update({ parts })} make={ctx.car.make} />
+          <PartsTable title={isQuote ? "Части" : q.kind === "доклад" ? "Сменени части" : "Препоръчани части"} lines={q.parts} onChange={(parts) => update({ parts })} make={ctx.car.make} stock={features.stock ? stock ?? [] : undefined} />
 
           <section className="card pad" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <label className="field">

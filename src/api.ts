@@ -91,6 +91,31 @@ export interface PartLine {
   quantity: number;
   unit: string;
   price: Money;
+  /** Set when picked from stock; taken off the shelf when the order closes. */
+  stockCode?: string;
+}
+
+export interface StockItem {
+  code: string;
+  part: string;
+  partNumber: string;
+  quantity: number;
+  unit: string;
+  /** Warn at or below this; 0 = never. */
+  minimum: number;
+  buyPrice: Money;
+  sellPrice: Money;
+  place: string;
+}
+
+export interface StockMove {
+  date: string;
+  code: string;
+  part: string;
+  change: number;
+  balance: number;
+  reason: string;
+  order: string;
 }
 
 export type OrderStatus = "приета" | "диагностика" | "чака_части" | "в_ремонт" | "готова" | "предадена";
@@ -412,6 +437,8 @@ export interface Dashboard {
   }[];
   /** Timers running now (time tracking on). */
   timers: TimeRow[];
+  /** Stock at or below its minimum (stock on). */
+  lowStock: StockItem[];
 }
 
 export interface TimeRow extends TimeEntry {
@@ -450,7 +477,7 @@ export const api = {
   setAutoUpdate: (on: boolean) => invoke<AppConfig>("set_auto_update", { on }),
   openPath: (path: string) => invoke<void>("open_path", { path }),
   revealPath: (path: string) => invoke<void>("reveal_path", { path }),
-  recordDir: (kind: "client" | "car" | "order" | "root", id = "") => invoke<string>("record_dir", { kind, id }),
+  recordDir: (kind: "client" | "car" | "order" | "root" | "stock", id = "") => invoke<string>("record_dir", { kind, id }),
 
   getShop: () => invoke<Loaded<Shop>>("get_shop"),
   saveShop: (input: SaveInput<Shop>) => invoke<Loaded<Shop>>("save_shop", { input }),
@@ -475,6 +502,11 @@ export const api = {
   timeAdd: (id: string, entry: TimeEntry) => invoke<TimeLog>("time_add", { id, entry }),
   timeRemove: (id: string, entry: TimeEntry) => invoke<TimeLog>("time_remove", { id, entry }),
   timeReport: (from: string, to: string) => invoke<TimeRow[]>("time_report", { from, to }),
+  stockList: () => invoke<StockItem[]>("stock_list"),
+  stockMoves: () => invoke<StockMove[]>("stock_moves"),
+  stockSave: (item: StockItem, original: string | null) => invoke<StockItem[]>("stock_save", { item, original }),
+  stockChange: (code: string, change: number, reason: string, buyPrice: Money | null) => invoke<StockItem[]>("stock_change", { code, change, reason, buyPrice }),
+  stockRemove: (code: string) => invoke<StockItem[]>("stock_remove", { code }),
   saveOrder: (input: SaveInput<WorkOrder>) => invoke<Loaded<WorkOrder>>("save_order", { input }),
   closeOrder: (id: string) => invoke<Loaded<WorkOrder>>("close_order", { id }),
 

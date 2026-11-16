@@ -76,6 +76,8 @@ const KEYS: &[(&str, &str)] = &[
     ("paid", "платено"),
     ("closedOn", "приключена"),
     ("historyWritten", "записана_в_историята"),
+    ("stockCode", "склад_код"),
+    ("stockTaken", "изписано_от_склада"),
     ("vinFields", "от_vin"),
     ("schedules", "графици"),
     ("makes", "марки"),

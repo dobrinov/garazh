@@ -11,6 +11,7 @@ pub mod vin;
 pub mod md;
 pub mod model;
 pub mod names;
+pub mod stock;
 pub mod store;
 pub mod timelog;
 pub mod usage;
@@ -63,6 +64,11 @@ pub fn run() {
             commands::time_add,
             commands::time_remove,
             commands::time_report,
+            commands::stock_list,
+            commands::stock_moves,
+            commands::stock_save,
+            commands::stock_change,
+            commands::stock_remove,
             commands::attach_files,
             commands::record_dir,
             commands::open_url,

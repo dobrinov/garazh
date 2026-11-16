@@ -67,7 +67,7 @@ fn main() {
                     labor: labor.into_iter().map(|(d, h)| LaborLine { description: d.into(), mechanic: "Георги".into(), hours: h, rate: money("50") }).collect(),
                     parts: parts
                         .into_iter()
-                        .map(|(p, n, q, u, price)| PartLine { part: p.into(), partNumber: n.into(), quantity: q, unit: u.into(), price: money(price) })
+                        .map(|(p, n, q, u, price)| PartLine { part: p.into(), partNumber: n.into(), quantity: q, unit: u.into(), price: money(price), ..Default::default() })
                         .collect(),
                     ..Default::default()
                 },
@@ -110,7 +110,7 @@ fn main() {
                 title: "Смяна на съединител и маховик".into(),
                 findings: "Съединителят буксува на 3-та и 4-та предавка.".into(),
                 labor: vec![LaborLine { description: "Смяна на съединител и двумасов маховик".into(), hours: 6.5, rate: money("50"), ..Default::default() }],
-                parts: vec![PartLine { part: "Комплект съединител с маховик".into(), partNumber: "LuK 600 0151 00".into(), quantity: 1.0, unit: "к-т".into(), price: money("520") }],
+                parts: vec![PartLine { part: "Комплект съединител с маховик".into(), partNumber: "LuK 600 0151 00".into(), quantity: 1.0, unit: "к-т".into(), price: money("520"), ..Default::default() }],
                 ..Default::default()
             },
             ..Default::default()

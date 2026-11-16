@@ -239,6 +239,13 @@ dl.facts dd { margin: 2px 0 0; font-weight: 600; }
 .stat-button.active { outline: 2px solid var(--accent); outline-offset: -2px; }
 .btn.danger-solid { background: var(--bad); border-color: var(--bad); color: #fff; }
 
+/* ---------- stock ---------- */
+.stock-note { margin-top: 2px; padding-left: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 260px; }
+.stock-picker { margin: 0 18px 14px; padding: 12px; border: 1px solid var(--line, #e2e2dc); border-radius: 12px; display: flex; flex-direction: column; gap: 8px; background: var(--ground); }
+.stock-picker-list { display: flex; flex-direction: column; max-height: 300px; overflow: auto; }
+.stock-picker-row { display: grid; grid-template-columns: 1fr auto 90px; gap: 12px; align-items: center; text-align: left; padding: 8px 10px; border: 0; background: none; border-radius: 8px; font: inherit; color: inherit; cursor: pointer; }
+.stock-picker-row:hover, .stock-picker-row:focus-visible { background: #fff; }
+
 /* ---------- update banner ---------- */
 .update-banner { position: sticky; top: 0; z-index: 20; padding: 12px 28px; background: #262a33; color: #fff; display: flex; flex-direction: column; gap: 10px; border-bottom: 3px solid var(--accent); }
 .update-banner-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }

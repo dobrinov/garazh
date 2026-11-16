@@ -24,7 +24,7 @@ export const FEATURES: FeatureDef[] = [
   { key: "links", label: "Полезни връзки", description: "Връзки към каталози и техническа информация според марката, с данните на колата.", default: true },
   { key: "faultCodes", label: "Кодове за грешки от PDF", description: "Чете кодовете (P0401, U0100…) от PDF отчетите на диагностичния уред.", default: true },
   { key: "timeTracking", label: "Отчитане на време", description: "Таймер „Старт/Стоп“ в работната карта и ръчно добавено време. Показва колко време е отишло за всяка кола. Записва се във време.md в папката на ремонта.", default: false },
-  { key: "stock", label: "Склад", description: "Наличности на части и консумативи. Предстои в следваща версия.", default: false, later: true },
+  { key: "stock", label: "Склад", description: "Наличности на части и консумативи: доставки, корекции, минимални количества. Части от склада се избират в работната карта и се изписват при приключване. Записва се в папка „склад“.", default: false },
 ];
 
 export type Features = Record<FeatureKey, boolean>;
