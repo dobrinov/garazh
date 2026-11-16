@@ -358,6 +358,17 @@ mod tests {
     }
 
     #[test]
+    fn us_built_bmw_gives_make_and_year_only() {
+        // A US-built BMW X3: the VIN alone tells make and year, never the gearbox.
+        let r = decode_local("5UX83DP06N9K32126", 2026);
+        assert!(r.valid);
+        assert_eq!(field(&r, "make"), Some("BMW"));
+        assert_eq!(field(&r, "year"), Some("2022"));
+        assert_eq!(r.country, "САЩ");
+        assert!(r.fields.iter().all(|f| f.field != "gearbox" && f.field != "gearboxCode"));
+    }
+
+    #[test]
     fn rejects_bad_vins() {
         assert!(!decode_local("WVWZZZ", 2026).valid);
         let r = decode_local("WVWZZZAUZGW12345O", 2026);

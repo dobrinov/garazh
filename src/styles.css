@@ -235,3 +235,6 @@ dl.facts dd { margin: 2px 0 0; font-weight: 600; }
 .update-bar > div.indeterminate { width: 40% !important; animation: update-slide 1.2s ease-in-out infinite; }
 @keyframes update-slide { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
 @media (prefers-reduced-motion: reduce) { .update-bar > div.indeterminate { animation: none; } }
+
+/* Example text in empty fields: lighter and italic so it never reads as a value. */
+input::placeholder, textarea::placeholder { color: #767b88; font-style: italic; opacity: 1; }

@@ -136,7 +136,7 @@ export function CarEdit() {
       <section className="card pad" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         <h2>Основни данни</h2>
         <div className="grid">
-          <TextField label="Регистрационен номер" value={car.plate} onChange={(v) => set("plate", v)} placeholder="СА 1234 АВ" mono />
+          <TextField label="Регистрационен номер" value={car.plate} onChange={(v) => set("plate", v)} placeholder="напр. СА 1234 АВ" mono />
           <div className="field">
             <TextField
               label="VIN"
@@ -156,7 +156,7 @@ export function CarEdit() {
             <TextField label="Марка" value={car.make} onChange={(v) => set("make", v)} list="makes" manual={car.manualFields.includes("make")} hint={vinHint("make")} />
           </VinAware>
           <VinAware k="model" label="Модел" car={car} hint={vinHint("model")} onTake={takeVin} has={!!suggestion("model")}>
-            <TextField label="Модел" value={car.model} onChange={(v) => set("model", v)} placeholder="Golf VII" manual={car.manualFields.includes("model")} hint={vinHint("model")} />
+            <TextField label="Модел" value={car.model} onChange={(v) => set("model", v)} manual={car.manualFields.includes("model")} hint={vinHint("model")} />
           </VinAware>
           <VinAware k="year" label="Година" car={car} hint={vinHint("year")} onTake={takeVin} has={!!suggestion("year")}>
             <TextField label="Година" type="number" value={car.year ?? ""} onChange={(v) => set("year", v ? Number(v) : null)} manual={car.manualFields.includes("year")} hint={vinHint("year")} />
@@ -168,20 +168,20 @@ export function CarEdit() {
         <h2>Двигател и скоростна кутия</h2>
         <div className="grid">
           <VinAware k="engine" label="Двигател" car={car} hint={vinHint("engine")} onTake={takeVin} has={!!suggestion("engine")}>
-            <TextField label="Двигател" value={car.engine} onChange={(v) => set("engine", v)} placeholder="2.0 TDI 110 kW" manual={car.manualFields.includes("engine")} hint={vinHint("engine")} />
+            <TextField label="Двигател" value={car.engine} onChange={(v) => set("engine", v)} manual={car.manualFields.includes("engine")} hint={vinHint("engine")} />
           </VinAware>
           <VinAware k="engineCode" label="Код на двигателя" car={car} hint={vinHint("engineCode")} onTake={takeVin} has={!!suggestion("engineCode")}>
-            <TextField label="Код на двигателя" value={car.engineCode} onChange={(v) => set("engineCode", v.toUpperCase())} placeholder="CRLB" mono manual={car.manualFields.includes("engineCode")} hint={vinHint("engineCode") ?? "Определя графика за поддръжка"} />
+            <TextField label="Код на двигателя" value={car.engineCode} onChange={(v) => set("engineCode", v.toUpperCase())} mono manual={car.manualFields.includes("engineCode")} hint={vinHint("engineCode") ?? "Определя графика за поддръжка"} />
           </VinAware>
           <VinAware k="gearbox" label="Скоростна кутия" car={car} hint={vinHint("gearbox")} onTake={takeVin} has={!!suggestion("gearbox")}>
             <TextField label="Скоростна кутия" value={car.gearbox} onChange={(v) => set("gearbox", v)} list="gearboxes" manual={car.manualFields.includes("gearbox")} hint={vinHint("gearbox")} />
           </VinAware>
           <VinAware k="gearboxCode" label="Код на кутията" car={car} hint={vinHint("gearboxCode")} onTake={takeVin} has={!!suggestion("gearboxCode")}>
-            <TextField label="Код на кутията" value={car.gearboxCode} onChange={(v) => set("gearboxCode", v.toUpperCase())} placeholder="DQ250" mono manual={car.manualFields.includes("gearboxCode")} hint={vinHint("gearboxCode")} />
+            <TextField label="Код на кутията" value={car.gearboxCode} onChange={(v) => set("gearboxCode", v.toUpperCase())} mono manual={car.manualFields.includes("gearboxCode")} hint={vinHint("gearboxCode") ?? "От табелката на кутията или документите"} />
           </VinAware>
           <TextField label="Цвят" value={car.color} onChange={(v) => set("color", v)} />
           <TextField label="Код боя" value={car.paintCode} onChange={(v) => set("paintCode", v)} mono />
-          <TextField label="Гуми" value={car.tyres} onChange={(v) => set("tyres", v)} placeholder="225/45 R17" />
+          <TextField label="Гуми" value={car.tyres} onChange={(v) => set("tyres", v)} placeholder="напр. 225/45 R17" />
         </div>
         <h2>Срокове</h2>
         <div className="grid">
