@@ -222,12 +222,14 @@ dl.facts dd { margin: 2px 0 0; font-weight: 600; }
 .logo-option img { width: 48px; height: 48px; }
 .print-logo { width: 56px; height: 56px; object-fit: contain; }
 
-/* ---------- update notice (side menu) ---------- */
-.update-notice { margin: 8px 6px; padding: 12px; border-radius: 12px; background: #262a33; color: #fff; display: flex; flex-direction: column; gap: 8px; }
+/* ---------- update banner ---------- */
+.update-banner { position: sticky; top: 0; z-index: 20; padding: 12px 28px; background: #262a33; color: #fff; display: flex; flex-direction: column; gap: 10px; border-bottom: 3px solid var(--accent); }
+.update-banner-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
 .update-title { font-weight: 700; }
-.update-sub { color: #9ea3ae; font-size: 12px; }
-.update-notes { font-size: 12px; color: #d4d6db; white-space: pre-wrap; max-height: 160px; overflow: auto; }
-.update-notice .btn.ghost { color: #d4d6db; }
+.update-sub { color: #b4b8c1; font-size: 13px; }
+.update-error { color: #fca5a5; }
+.update-notes { font-size: 13px; color: #d4d6db; white-space: pre-wrap; max-height: 200px; overflow: auto; }
+.update-banner .btn.ghost { color: #d4d6db; }
 .update-bar { height: 6px; border-radius: 3px; background: #3b404c; overflow: hidden; }
 .update-bar > div { height: 100%; background: var(--accent); transition: width .2s; }
 .update-bar > div.indeterminate { width: 40% !important; animation: update-slide 1.2s ease-in-out infinite; }
