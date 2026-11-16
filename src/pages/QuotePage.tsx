@@ -232,6 +232,8 @@ export function QuotePage() {
                 <div style={{ padding: "0 18px 14px" }}>
                   <FaultCodes
                     files={ctx.files}
+                    make={ctx.car.make}
+                    model={ctx.car.model}
                     onCodes={(codes) => {
                       const known = new Set(q.faultCodes.map((c) => c.code));
                       const add = codes.filter((c) => !known.has(c.code)).map((c) => ({ code: c.code, text: c.text.replace(c.code, "").trim() }));

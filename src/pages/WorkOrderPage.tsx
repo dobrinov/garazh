@@ -217,7 +217,7 @@ export function WorkOrderPage() {
             {id ? (
               <>
                 <Files files={ctx.files} target="order" id={id} onChange={() => setTick((t) => t + 1)} hint="Файловете се записват в папката на този ремонт" />
-                {features.faultCodes && <FaultCodes files={ctx.files} />}
+                {features.faultCodes && <FaultCodes files={ctx.files} make={ctx.car.make} model={ctx.car.model} />}
               </>
             ) : (
               <div className="muted">Запазете картата, за да прикачите файлове.</div>

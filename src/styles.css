@@ -235,6 +235,8 @@ dl.facts dd { margin: 2px 0 0; font-weight: 600; }
 .time-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); animation: time-pulse 1.6s ease-in-out infinite; }
 @keyframes time-pulse { 50% { opacity: .3; } }
 @media (prefers-reduced-motion: reduce) { .time-dot { animation: none; } }
+.stat-button { text-align: left; font: inherit; color: inherit; cursor: pointer; }
+.stat-button.active { outline: 2px solid var(--accent); outline-offset: -2px; }
 .btn.danger-solid { background: var(--bad); border-color: var(--bad); color: #fff; }
 
 /* ---------- update banner ---------- */

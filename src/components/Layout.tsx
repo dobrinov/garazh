@@ -10,6 +10,7 @@ const NAV = [
   { to: "/cars", label: "Автомобили", icon: "car" },
   { to: "/orders", label: "Работни карти", icon: "order" },
   { to: "/quotes", label: "Оферти и доклади", icon: "quote", feature: "quotes" as const },
+  { to: "/time", label: "Отработено време", icon: "clock", feature: "timeTracking" as const },
 ];
 
 export function Layout() {

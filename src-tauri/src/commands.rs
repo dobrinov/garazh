@@ -197,6 +197,51 @@ pub struct DashboardData {
     #[serde(flatten)]
     pub base: Dashboard,
     pub maintenance: Vec<MaintenanceRow>,
+    /// Timers running now (time tracking on), oldest first.
+    pub timers: Vec<TimeRow>,
+}
+
+/// One time entry with its work order and car, for the dashboard and the report.
+#[derive(Serialize, Debug, Clone)]
+pub struct TimeRow {
+    pub orderId: String,
+    pub orderNumber: String,
+    pub plate: String,
+    pub carName: String,
+    pub carId: String,
+    #[serde(flatten)]
+    pub entry: TimeEntry,
+}
+
+fn time_rows(scan: &store::Scan) -> Vec<TimeRow> {
+    let mut out = Vec::new();
+    for o in &scan.orders {
+        let car = scan.cars.iter().find(|c| c.0.data.id == o.data.carId).map(|c| &c.0.data);
+        for e in timelog::read(Path::new(&o.dir)) {
+            out.push(TimeRow {
+                orderId: o.data.id.clone(),
+                orderNumber: o.data.number.clone(),
+                plate: car.map(|c| c.plate.clone()).unwrap_or_default(),
+                carName: car.map(views::car_name).unwrap_or_default(),
+                carId: o.data.carId.clone(),
+                entry: e,
+            });
+        }
+    }
+    out
+}
+
+/// Finished time between two dates (inclusive), for the time report.
+#[tauri::command]
+pub fn time_report(state: State<AppState>, from: String, to: String) -> R<Vec<TimeRow>> {
+    let st = store(&state)?;
+    let scan = st.scan()?;
+    let mut rows: Vec<TimeRow> = time_rows(&scan)
+        .into_iter()
+        .filter(|r| r.entry.minutes.is_some() && r.entry.date.as_str() >= from.as_str() && r.entry.date.as_str() <= to.as_str())
+        .collect();
+    rows.sort_by(|a, b| b.entry.date.cmp(&a.entry.date).then(b.entry.start.cmp(&a.entry.start)));
+    Ok(rows)
 }
 
 /// Cars not seen for this long are left off the maintenance list: their
@@ -231,7 +276,12 @@ pub fn dashboard(state: State<AppState>) -> R<DashboardData> {
         }
         maintenance.sort_by(|a, b| a.nextDate.cmp(&b.nextDate));
     }
-    Ok(DashboardData { base, maintenance })
+    let mut timers = Vec::new();
+    if feature_on(&features(&st), "timeTracking") {
+        timers = time_rows(&scan).into_iter().filter(|r| r.entry.running()).collect();
+        timers.sort_by(|a, b| a.entry.date.cmp(&b.entry.date).then(a.entry.start.cmp(&b.entry.start)));
+    }
+    Ok(DashboardData { base, maintenance, timers })
 }
 
 /// The schedule for one car; None when its last reading is too old.

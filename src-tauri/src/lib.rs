@@ -62,6 +62,7 @@ pub fn run() {
             commands::time_stop,
             commands::time_add,
             commands::time_remove,
+            commands::time_report,
             commands::attach_files,
             commands::record_dir,
             commands::open_url,

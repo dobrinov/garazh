@@ -1,10 +1,11 @@
 name: Website
 
-# Publishes site/ (the download page) to GitHub Pages whenever it changes.
+# Publishes site/ (the download page) to GitHub Pages whenever it or the
+# changelog changes. "Какво ново" on the page comes from CHANGELOG.md.
 on:
   push:
     branches: [main]
-    paths: ["site/**", ".github/workflows/pages.yml"]
+    paths: ["site/**", "CHANGELOG.md", "scripts/site-changelog.mjs", ".github/workflows/pages.yml"]
   workflow_dispatch:
 
 permissions:
@@ -24,6 +25,8 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      - name: "What's new" from CHANGELOG.md
+        run: node scripts/site-changelog.mjs
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

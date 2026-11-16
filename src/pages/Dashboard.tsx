@@ -2,7 +2,8 @@ import { Link, useNavigate } from "react-router-dom";
 import { api, Dashboard as DashboardData } from "../api";
 type Dashboard = DashboardData;
 import { DeadlineBadge, Icon, Loading, Plate, StatusBadge, useLoad } from "../components/ui";
-import { date, euro, int } from "../lib/format";
+import { date, euro, int, todayIso } from "../lib/format";
+import { entryMinutes, formatMinutes } from "../lib/time";
 
 export function Dashboard() {
   const nav = useNavigate();
@@ -38,6 +39,8 @@ export function Dashboard() {
           </ul>
         </div>
       )}
+
+      {data.timers.length > 0 && <RunningTimers rows={data.timers} />}
 
       <section className="stats">
         <div className="card stat"><div className="label">В сервиза сега</div><div className="value">{data.inShop.length}</div></div>
@@ -127,6 +130,44 @@ function Maintenance({ rows }: { rows: Dashboard["maintenance"] }) {
                   <td>{r.operation}{items.length > 1 && <span className="small muted"> и още {items.length - 1}</span>}</td>
                   <td className="mono small">{date(r.nextDate)}{r.kmLeft !== null && <div className="muted">{r.kmLeft < 0 ? `${int(-r.kmLeft)} км след срока` : `след ${int(r.kmLeft)} км`}</div>}</td>
                   <td><span className={`badge ${r.status === "просрочено" ? "bad" : "warn"}`}>{r.status === "просрочено" ? "Просрочено" : "Скоро"}</span></td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+/** A timer this long was probably left running by mistake. */
+const FORGOTTEN_MINUTES = 10 * 60;
+
+function RunningTimers({ rows }: { rows: Dashboard["timers"] }) {
+  const nav = useNavigate();
+  const now = new Date();
+  return (
+    <section className="card">
+      <div className="card-head">
+        <h2><span className="time-dot" aria-hidden style={{ display: "inline-block", marginRight: 8 }} />Таймери, които текат</h2>
+        <span className="muted small">спрете ги от работната карта</span>
+      </div>
+      <div className="table-wrap">
+        <table className="tbl">
+          <tbody>
+            {rows.map((r) => {
+              const m = entryMinutes(r, now);
+              const forgotten = m >= FORGOTTEN_MINUTES;
+              return (
+                <tr key={`${r.orderId} ${r.date} ${r.start} ${r.mechanic}`} className="link" onClick={() => nav(`/orders/${r.orderId}`)}>
+                  <td><Plate value={r.plate} /><div className="small muted">{r.carName}</div></td>
+                  <td className="mono small">{r.orderNumber}</td>
+                  <td>{r.mechanic || <span className="muted">—</span>}</td>
+                  <td className="small muted">от {r.start}{r.date !== todayIso() ? ` на ${date(r.date)}` : ""}</td>
+                  <td className="right">
+                    <strong className="mono">{formatMinutes(m)}</strong>
+                    {forgotten && <div><span className="badge bad">Вероятно е забравен</span></div>}
+                  </td>
                 </tr>
               );
             })}

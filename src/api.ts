@@ -410,6 +410,16 @@ export interface Dashboard {
     nextDate: string | null;
     kmLeft: number | null;
   }[];
+  /** Timers running now (time tracking on). */
+  timers: TimeRow[];
+}
+
+export interface TimeRow extends TimeEntry {
+  orderId: string;
+  orderNumber: string;
+  plate: string;
+  carName: string;
+  carId: string;
 }
 
 export interface SaveInput<T> {
@@ -464,6 +474,7 @@ export const api = {
   timeStop: (id: string, entry: TimeEntry) => invoke<TimeLog>("time_stop", { id, entry }),
   timeAdd: (id: string, entry: TimeEntry) => invoke<TimeLog>("time_add", { id, entry }),
   timeRemove: (id: string, entry: TimeEntry) => invoke<TimeLog>("time_remove", { id, entry }),
+  timeReport: (from: string, to: string) => invoke<TimeRow[]>("time_report", { from, to }),
   saveOrder: (input: SaveInput<WorkOrder>) => invoke<Loaded<WorkOrder>>("save_order", { input }),
   closeOrder: (id: string) => invoke<Loaded<WorkOrder>>("close_order", { id }),
 
