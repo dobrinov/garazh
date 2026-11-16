@@ -3,6 +3,7 @@
 
 mod backup;
 pub mod calls;
+pub mod jobs;
 mod commands;
 mod config;
 pub mod faultcodes;
@@ -83,6 +84,7 @@ pub fn run() {
             commands::mark_done,
             commands::install_reference,
             commands::reference_dir,
+            commands::list_jobs,
             commands::list_quotes,
             commands::get_quote,
             commands::save_quote,

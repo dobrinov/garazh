@@ -11,6 +11,7 @@ import { Icon, Loading, Menu, Plate, TextField, useNow, useToast } from "../comp
 import { date, euro, int, km, STATUS_LABEL, STATUS_ORDER, todayIso } from "../lib/format";
 import { computeTotals } from "../lib/totals";
 import { formatDuration, nextStep, stageHint, stageOf, stageTimes } from "../lib/stages";
+import { startJob } from "../lib/jobs";
 
 interface Ctx {
   car: Car;
@@ -36,6 +37,7 @@ export function WorkOrderPage() {
   const [busy, setBusy] = useState(false);
   const [tick, setTick] = useState(0);
   const [editIntake, setEditIntake] = useState(false);
+  const [fromJob, setFromJob] = useState("");
   const now = useNow();
   const features = useFeatures();
   const [stock, setStock] = useState<StockItem[] | null>(null);
@@ -72,7 +74,35 @@ export function WorkOrderPage() {
           o.complaint = params.get("complaint") ?? "";
           // Received straight into a later stage ("+" on a board column).
           if (params.get("status")) o.status = stageOf(params.get("status"));
-          setOrder(o);
+          // A usual job: straight to its stage with last time's lines.
+          let start = o;
+          const jobName = params.get("job");
+          const job = jobName ? (await api.listJobs()).find((j) => j.name === jobName) : undefined;
+          if (!alive) return;
+          if (job) {
+            const r = startJob(o, job, d.orders.map((x) => x.order), shop.laborRate);
+            start = params.get("status") ? { ...r.order, status: o.status } : r.order;
+            setFromJob(r.from ? `Редовете са от последния път, ${date(r.from.date)} – проверете количествата и цените.` : `Редовете са от „${job.file}“ в „справочници\\работи“ – попълнете номерата и цените.`);
+          }
+          if (params.get("received") === "1") {
+            // The car has arrived: save at once, so it is on the board and its
+            // time in the stage starts now. Opens as a normal saved work order.
+            try {
+              const saved = await api.saveOrder({ data: start, notes: "", baseHash: null });
+              const expected = params.get("expected");
+              if (expected) await api.removeExpected(expected).catch(() => undefined);
+              notifyChanged();
+              if (!alive) return;
+              toast(`Приета – ${saved.data.number}`);
+              nav(`/orders/${saved.data.id}`, { replace: true });
+              return;
+            } catch (e) {
+              // Could not save: show the unsaved card, so nothing typed is lost.
+              if (!alive) return;
+              toast(errorMessage(e), true);
+            }
+          }
+          setOrder(start);
           setCtx({ car: d.car.data, client: d.owner, carKm: d.usage.lastKm, usage: d.usage, files: [], shop });
         }
         setDirty(false);
@@ -275,6 +305,7 @@ export function WorkOrderPage() {
           </section>
           )}
 
+          {fromJob && !id && <div className="note info">{fromJob}</div>}
           <LaborTable title="Извършени дейности (труд)" lines={order.labor} onChange={(labor) => update({ labor })} rate={ctx.shop.laborRate} mechanic={order.mechanic} />
 
           {features.timeTracking && (id ? (

@@ -30,6 +30,7 @@ export async function receiveExpected(e: ExpectedRow, nav: NavigateFunction, sta
   if (status && status !== "приета") p.set("status", status);
   if (e.carId) {
     p.set("car", e.carId);
+    p.set("received", "1");
     if (e.complaint) p.set("complaint", e.complaint);
     return nav(`/orders/new?${p}`);
   }

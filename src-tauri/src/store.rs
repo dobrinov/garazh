@@ -167,7 +167,7 @@ impl Store {
         fs::create_dir_all(self.root.join(INDEX_DIR))?;
         // Starter reference data goes in only when its folder has no files yet,
         // so files the owner deleted on purpose do not come back.
-        for (dir, files) in [(self.schedules_dir(), crate::schedule::STARTER), (self.links_dir(), crate::links::STARTER)] {
+        for (dir, files) in [(self.schedules_dir(), crate::schedule::STARTER), (self.links_dir(), crate::links::STARTER), (self.jobs_dir(), crate::jobs::STARTER)] {
             let empty = fs::read_dir(&dir).map(|mut rd| rd.next().is_none()).unwrap_or(true);
             if empty {
                 self.install_starter(&dir, files, false)?;
@@ -191,6 +191,9 @@ impl Store {
     }
     pub fn links_dir(&self) -> PathBuf {
         self.root.join(REFERENCE_DIR).join(crate::links::LINKS_DIR)
+    }
+    pub fn jobs_dir(&self) -> PathBuf {
+        self.root.join(REFERENCE_DIR).join(crate::jobs::JOBS_DIR)
     }
     pub fn vin_cache_dir(&self) -> PathBuf {
         self.root.join(REFERENCE_DIR).join(VIN_CACHE_DIR)
@@ -954,6 +957,7 @@ Notepad и Excel и да копирате документи директно в
     обаждания.md   обаждания до клиента за срокове и обслужване\r\n\
 справочници\\графици\\   графици за поддръжка по двигател и кутия (редактируеми)\r\n\
 справочници\\марки\\     полезни връзки по марка (редактируеми)\r\n\
+справочници\\работи\\    обичайни работи: етап и редове за нова работна карта (редактируеми)\r\n\
 справочници\\vin-отговори\\  запазени отговори от онлайн проверка на VIN\r\n\
 сервиз.md                                  данни за сервиза и броячи\r\n\
 очаквани.md                                коли, за които клиентът се е обадил\r\n\

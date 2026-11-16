@@ -70,7 +70,7 @@ export function Settings({
     }
   }
 
-  async function openReference(kind: "schedules" | "links") {
+  async function openReference(kind: "schedules" | "links" | "jobs") {
     try {
       await api.openPath(await api.referenceDir(kind));
     } catch (e) {
@@ -171,11 +171,14 @@ export function Settings({
       <section className="card pad" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <h2>Справочници</h2>
         <div className="muted">
-          Графиците за поддръжка и полезните връзки са обикновени файлове в папка „справочници“. Програмата идва с
+          Обичайните работи, графиците за поддръжка и полезните връзки са обикновени файлове в папка „справочници“.
+          Обичайната работа (например смяна на масло или боядисване на елемент) се избира при „Приеми кола“ и отваря
+          работната карта направо в работа, с готовите редове – добавете свои файлове, а ненужните изтрийте. Програмата идва с
           примерни графици за често срещани двигатели и кутии – <strong>те не са проверени</strong>. Сверете ги с данните на
           производителя и във всеки проверен файл сменете <span className="mono">проверено: false</span> на <span className="mono">true</span>.
         </div>
         <div className="row">
+          <button className="btn" onClick={() => openReference("jobs")}><Icon name="folder" />Обичайни работи</button>
           <button className="btn" onClick={() => openReference("schedules")}><Icon name="folder" />Графици</button>
           <button className="btn" onClick={() => openReference("links")}><Icon name="folder" />Полезни връзки</button>
           <button className="btn" onClick={() => installReference(false)}>Добави липсващите примерни файлове</button>

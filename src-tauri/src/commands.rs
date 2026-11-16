@@ -700,7 +700,8 @@ pub fn install_reference(state: State<AppState>, overwrite: bool) -> R<usize> {
     let st = store(&state)?;
     let a = st.install_starter(&st.schedules_dir(), schedule::STARTER, overwrite)?;
     let b = st.install_starter(&st.links_dir(), links::STARTER, overwrite)?;
-    Ok(a + b)
+    let c = st.install_starter(&st.jobs_dir(), crate::jobs::STARTER, overwrite)?;
+    Ok(a + b + c)
 }
 
 #[tauri::command]
@@ -709,10 +710,25 @@ pub fn reference_dir(state: State<AppState>, kind: String) -> R<String> {
     let dir = match kind.as_str() {
         "schedules" => st.schedules_dir(),
         "links" => st.links_dir(),
+        "jobs" => st.jobs_dir(),
         _ => return Err(StoreError::Invalid(format!("непознат вид: {kind}")).into()),
     };
     std::fs::create_dir_all(&dir)?;
     Ok(dir.to_string_lossy().to_string())
+}
+
+/// The shop's usual jobs, for "Приеми кола".
+#[tauri::command]
+pub fn list_jobs(state: State<AppState>) -> R<Vec<crate::jobs::Job>> {
+    let st = store(&state)?;
+    let dir = st.jobs_dir();
+    // Folders from before 0.5 get the examples once. A folder the owner
+    // emptied on purpose stays empty.
+    if !dir.exists() {
+        let _g = state.write_lock.lock().unwrap();
+        st.install_starter(&dir, crate::jobs::STARTER, false)?;
+    }
+    Ok(crate::jobs::list(&dir))
 }
 
 // ---------- quotes and reports ----------

@@ -85,6 +85,17 @@ export interface LaborLine {
   rate: Money;
 }
 
+/** A usual job of the shop (справочници/работи): where it starts and its lines. */
+export interface Job {
+  /** Also the title of the work order. */
+  name: string;
+  /** As written in the file, e.g. "В ремонт"; "" when not given. */
+  stage: string;
+  labor: LaborLine[];
+  parts: PartLine[];
+  file: string;
+}
+
 export interface PartLine {
   part: string;
   partNumber: string;
@@ -566,7 +577,8 @@ export const api = {
   markDone: (carId: string, row: { operation: string; date: string; km: number | null; note: string }) =>
     invoke<void>("mark_done", { carId, row }),
   installReference: (overwrite: boolean) => invoke<number>("install_reference", { overwrite }),
-  referenceDir: (kind: "schedules" | "links") => invoke<string>("reference_dir", { kind }),
+  referenceDir: (kind: "schedules" | "links" | "jobs") => invoke<string>("reference_dir", { kind }),
+  listJobs: () => invoke<Job[]>("list_jobs"),
 
   listQuotes: () => invoke<QuoteSummary[]>("list_quotes"),
   getQuote: (id: string) => invoke<QuoteDetail>("get_quote", { id }),

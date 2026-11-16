@@ -123,7 +123,7 @@ export function CarEdit() {
       const saved = await api.saveCar({ data: car, notes, baseHash: hash });
       toast("Автомобилът е запазен");
       if (expectedId || params.get("intake")) {
-        const next = new URLSearchParams({ car: saved.data.id });
+        const next = new URLSearchParams({ car: saved.data.id, received: "1" });
         if (expectedId) next.set("expected", expectedId);
         if (complaint) next.set("complaint", complaint);
         if (params.get("status")) next.set("status", params.get("status")!);

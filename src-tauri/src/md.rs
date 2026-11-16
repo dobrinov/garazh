@@ -97,6 +97,7 @@ const KEYS: &[(&str, &str)] = &[
     ("logo", "лого"),
     ("stages", "етапи"),
     ("at", "от"),
+    ("stage", "етап"),
 ];
 
 fn to_file_key(k: &str) -> Option<&'static str> {

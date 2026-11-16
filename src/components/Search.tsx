@@ -3,8 +3,9 @@
 // start a work order with the mileage and complaint already written.
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { api, CarSummary, ClientSummary, errorMessage, ExpectedRow, notifyChanged, OrderStatus, OrderSummary, QuoteSummary } from "../api";
+import { api, CarSummary, ClientSummary, errorMessage, ExpectedRow, Job, notifyChanged, OrderStatus, OrderSummary, QuoteSummary } from "../api";
 import { date, km, matches, plateKey, STATUS_LABEL } from "../lib/format";
+import { jobFromText, jobStage } from "../lib/jobs";
 import { useFeatures } from "./features";
 import { DeadlineBadge, Dialog, Icon, Plate, StatusBadge, useToast } from "./ui";
 
@@ -78,6 +79,8 @@ function SearchDialog({ mode, status, onClose }: { mode: Mode; status?: OrderSta
   const [sel, setSel] = useState(0);
   const [mileage, setMileage] = useState("");
   const [complaint, setComplaint] = useState("");
+  const [job, setJob] = useState<Job | null>(null);
+  const [jobs, setJobs] = useState<Job[]>([]);
   const [useQuote, setUseQuote] = useState(true);
   const [busy, setBusy] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
@@ -93,6 +96,9 @@ function SearchDialog({ mode, status, onClose }: { mode: Mode; status?: OrderSta
       .then(([cars, clients, orders, quotes, expected]) => setData({ cars, clients, orders, quotes, expected }))
       .catch((e) => toast(errorMessage(e), true));
   }, [features.quotes, toast]);
+  useEffect(() => {
+    if (mode === "intake") api.listJobs().then(setJobs).catch(() => setJobs([]));
+  }, [mode]);
 
   const hits = useMemo<Hit[]>(() => {
     if (!data) return [];
@@ -127,7 +133,9 @@ function SearchDialog({ mode, status, onClose }: { mode: Mode; status?: OrderSta
   useEffect(() => setSel(0), [q]);
   useEffect(() => {
     // A car that was announced by phone brings its complaint along.
-    setComplaint(current?.kind === "car" && current.expected ? current.expected.complaint : "");
+    const said = current?.kind === "car" && current.expected ? current.expected.complaint : "";
+    setComplaint(said);
+    setJob(jobFromText(jobs, said));
     setMileage("");
     setUseQuote(true);
   }, [current?.key]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -171,11 +179,13 @@ function SearchDialog({ mode, status, onClose }: { mode: Mode; status?: OrderSta
       }
       return;
     }
-    const p = new URLSearchParams({ car: car.car.id });
+    // The car is here: the work order is saved straight away (onto the board).
+    const p = new URLSearchParams({ car: car.car.id, received: "1" });
     if (kmValue) p.set("km", String(kmValue));
     if (complaint.trim()) p.set("complaint", complaint.trim());
     if (expected) p.set("expected", expected.id);
     if (status) p.set("status", status);
+    if (job) p.set("job", job.name);
     go(`/orders/new?${p}`);
   }
 
@@ -280,6 +290,9 @@ function SearchDialog({ mode, status, onClose }: { mode: Mode; status?: OrderSta
                 setMileage={setMileage}
                 complaint={complaint}
                 setComplaint={setComplaint}
+                jobs={jobs}
+                job={job}
+                setJob={setJob}
                 useQuote={useQuote}
                 setUseQuote={setUseQuote}
                 busy={busy}
@@ -378,6 +391,9 @@ function CarPreview(p: {
   setMileage: (v: string) => void;
   complaint: string;
   setComplaint: (v: string) => void;
+  jobs: Job[];
+  job: Job | null;
+  setJob: (v: Job | null) => void;
   useQuote: boolean;
   setUseQuote: (v: boolean) => void;
   busy: boolean;
@@ -412,18 +428,37 @@ function CarPreview(p: {
               <span>Пренеси редовете от <strong>{p.quote.quote.number}</strong> ({p.quote.quote.title || "оферта"}) в работната карта</span>
             </label>
           )}
+          {!(p.quote && p.useQuote) && p.jobs.length > 0 && (
+            <div className="field">
+              Работа
+              <div className="job-chips" role="radiogroup" aria-label="Работа">
+                <button type="button" role="radio" aria-checked={!p.job} className={!p.job ? "on" : ""} onClick={() => p.setJob(null)}>Нова – по оплакване</button>
+                {p.jobs.map((j) => (
+                  <button key={j.file} type="button" role="radio" aria-checked={p.job?.file === j.file} className={p.job?.file === j.file ? "on" : ""} onClick={() => p.setJob(j)}>
+                    {j.name}
+                  </button>
+                ))}
+              </div>
+              <span className="small muted">
+                {p.job
+                  ? `Направо „${STATUS_LABEL[jobStage(p.job)]}“, с редовете от последния път, когато колата е имала тази работа.`
+                  : "Започва от „Приета“ с оплакването на клиента."}{" "}
+                <button type="button" className="link-btn small" onClick={() => api.referenceDir("jobs").then(api.openPath)}>Промени списъка</button>
+              </span>
+            </div>
+          )}
           <label className="field">
             Пробег при приемане
             <input className="mono" inputMode="numeric" value={p.mileage} onChange={(e) => p.setMileage(e.target.value)} placeholder={c.usage.lastKm ? `последно ${km(c.usage.lastKm)}` : "км"} />
           </label>
           <label className="field">
-            Оплакване на клиента
+            {p.job ? "Бележка (по желание)" : "Оплакване на клиента"}
             <textarea value={p.complaint} onChange={(e) => p.setComplaint(e.target.value)} rows={3} />
           </label>
         </>
       )}
       <div className="grow-space" />
-      <div className="row" style={{ justifyContent: "flex-end" }}>
+      <div className="row preview-actions" style={{ justifyContent: "flex-end" }}>
         <button type="button" className={`btn ${p.primaryIsIntake ? "" : "primary"}`} onClick={p.onOpen}>Към колата</button>
         <button type="button" className={`btn ${p.primaryIsIntake ? "primary" : ""}`} onClick={p.onReceive} disabled={p.busy}>
           {c.openOrder ? "Отвори картата" : "Приеми · нова карта"}
