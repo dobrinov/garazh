@@ -10,6 +10,8 @@ export interface AppConfig {
   backupKeep: number;
   lastBackup: string | null;
   noAutoUpdate: boolean;
+  /** The remembered data folder, when it no longer holds the data. */
+  missingDataDir?: string | null;
 }
 
 export interface Loaded<T> {

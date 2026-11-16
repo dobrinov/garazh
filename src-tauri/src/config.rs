@@ -16,6 +16,11 @@ pub struct AppConfig {
     pub lastBackup: Option<String>,
     /// Automatic update checks are on unless this is set.
     pub noAutoUpdate: bool,
+    /// Set (only in what the UI receives) when dataDir points at a folder
+    /// that no longer holds the data, e.g. it was deleted or the drive is
+    /// not connected. Never read back from config.json.
+    #[serde(skip_deserializing)]
+    pub missingDataDir: Option<String>,
 }
 
 impl AppConfig {

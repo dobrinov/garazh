@@ -46,7 +46,7 @@ export function App() {
       <UpdatesProvider auto={!config.noAutoUpdate} backupConfigured={!!config.backupDir}>
       <BrandProvider enabled={!!config.dataDir}>
       {!config.dataDir ? (
-        <Setup onDone={setConfig} />
+        <Setup onDone={setConfig} missingDir={config.missingDataDir ?? null} />
       ) : (
         <FeaturesProvider value={features}>
         <HashRouter>

@@ -6,10 +6,10 @@ import { LogoPicker } from "../components/LogoPicker";
 import { Icon } from "../components/ui";
 
 /** First start: 1) where to keep the data, 2) the shop's name and logo. */
-export function Setup({ onDone }: { onDone: (c: AppConfig) => void }) {
+export function Setup({ onDone, missingDir = null }: { onDone: (c: AppConfig) => void; missingDir?: string | null }) {
   const [step, setStep] = useState<1 | 2>(1);
   const [config, setConfig] = useState<AppConfig | null>(null);
-  const [path, setPath] = useState("");
+  const [path, setPath] = useState(missingDir ?? "");
   const [name, setName] = useState("");
   const [logo, setLogo] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -65,6 +65,13 @@ export function Setup({ onDone }: { onDone: (c: AppConfig) => void }) {
 
         {step === 1 ? (
           <>
+            {missingDir && (
+              <div className="note bad">
+                Папката с данни <span className="mono">{missingDir}</span> не е намерена. Ако е на външен диск или в
+                OneDrive, свържете го и рестартирайте програмата. Иначе изберете друга папка или натиснете „Напред“,
+                за да създадете нова празна папка на същото място.
+              </div>
+            )}
             <p style={{ margin: 0, lineHeight: 1.6 }}>
               Изберете папка, в която програмата да пази данните. Всичко се записва като обикновени папки и текстови
               файлове, които можете да разглеждате с Explorer и Notepad. Препоръка: папка в OneDrive или на друг диск,

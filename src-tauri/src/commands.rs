@@ -67,7 +67,16 @@ fn features(st: &Store) -> Shop {
 
 #[tauri::command]
 pub fn app_config(state: State<AppState>) -> AppConfig {
-    state.config.lock().unwrap().clone()
+    let mut cfg = state.config.lock().unwrap().clone();
+    // A data folder that was deleted (or is on a drive that is not connected)
+    // sends the user back to the setup screen, with the old path filled in.
+    // config.json keeps the path, so a drive that comes back just works.
+    if let Some(dir) = cfg.data_path() {
+        if !dir.join(store::SHOP_FILE).exists() {
+            cfg.missingDataDir = cfg.dataDir.take();
+        }
+    }
+    cfg
 }
 
 /// Choose (and if needed create) the data folder.
@@ -80,6 +89,7 @@ pub fn set_data_dir(state: State<AppState>, path: String) -> R<AppConfig> {
     Store::new(&p).init()?;
     let mut cfg = state.config.lock().unwrap();
     cfg.dataDir = Some(path);
+    cfg.missingDataDir = None;
     cfg.save(&state.config_dir)?;
     Ok(cfg.clone())
 }
