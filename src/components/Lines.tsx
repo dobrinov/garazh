@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { LaborLine, Money, PartLine } from "../api";
 import { euro } from "../lib/format";
 import { lineCents } from "../lib/totals";
+import { RealOemPartLinks } from "./RealOem";
 import { Icon } from "./ui";
 
 export function NumInput({ value, onChange, label }: { value: number; onChange: (v: number) => void; label: string }) {
@@ -57,7 +58,7 @@ export function LaborTable({ title, lines, onChange, rate, mechanic = "" }: { ti
   );
 }
 
-export function PartsTable({ title, hint, lines, onChange }: { title: string; hint?: string; lines: PartLine[]; onChange: (l: PartLine[]) => void }) {
+export function PartsTable({ title, hint, lines, onChange, make }: { title: string; hint?: string; lines: PartLine[]; onChange: (l: PartLine[]) => void; /** The car's make: BMW part numbers then link to RealOEM. */ make?: string }) {
   return (
     <section className="card">
       <div className="card-head">
@@ -77,7 +78,7 @@ export function PartsTable({ title, hint, lines, onChange }: { title: string; hi
               return (
                 <tr key={i}>
                   <td><input value={p.part} onChange={(e) => set({ part: e.target.value })} aria-label="Част" /></td>
-                  <td><input value={p.partNumber} onChange={(e) => set({ partNumber: e.target.value })} aria-label="Марка или каталожен номер" /></td>
+                  <td><div className="cell-with-action"><input value={p.partNumber} onChange={(e) => set({ partNumber: e.target.value })} aria-label="Марка или каталожен номер" /><RealOemPartLinks make={make} text={p.partNumber} /></div></td>
                   <td style={{ width: 90 }}><NumInput value={p.quantity} onChange={(v) => set({ quantity: v })} label="Количество" /></td>
                   <td style={{ width: 80 }}><input value={p.unit} onChange={(e) => set({ unit: e.target.value })} aria-label="Мярка" list="units" /></td>
                   <td style={{ width: 110 }}><input className="mono right" value={p.price} onChange={(e) => set({ price: e.target.value })} aria-label="Единична цена" /></td>

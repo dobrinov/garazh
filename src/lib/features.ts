@@ -1,7 +1,7 @@
 // Feature switches, kept in сервиз.md under "функции".
 // Defaults must match feature_on() in src-tauri/src/commands.rs.
 
-export type FeatureKey = "schedule" | "vin" | "vinOnline" | "quotes" | "links" | "faultCodes" | "stock";
+export type FeatureKey = "schedule" | "vin" | "vinOnline" | "quotes" | "links" | "faultCodes" | "timeTracking" | "stock";
 
 export interface FeatureDef {
   key: FeatureKey;
@@ -23,6 +23,7 @@ export const FEATURES: FeatureDef[] = [
   { key: "quotes", label: "Оферти и доклади", description: "Оферти за ремонт, доклади за извършен ремонт и за диагностика – печат и PDF.", default: true },
   { key: "links", label: "Полезни връзки", description: "Връзки към каталози и техническа информация според марката, с данните на колата.", default: true },
   { key: "faultCodes", label: "Кодове за грешки от PDF", description: "Чете кодовете (P0401, U0100…) от PDF отчетите на диагностичния уред.", default: true },
+  { key: "timeTracking", label: "Отчитане на време", description: "Таймер „Старт/Стоп“ в работната карта и ръчно добавено време. Показва колко време е отишло за всяка кола. Записва се във време.md в папката на ремонта.", default: false },
   { key: "stock", label: "Склад", description: "Наличности на части и консумативи. Предстои в следваща версия.", default: false, later: true },
 ];
 

@@ -207,6 +207,7 @@ dl.facts dd { margin: 2px 0 0; font-weight: 600; }
 .link-row:hover { background: var(--ground); }
 .link-row svg { margin-top: 3px; color: var(--link); flex: none; }
 .link-name { font-weight: 600; }
+.link-copy { color: var(--link); }
 
 /* ---------- shop logo ---------- */
 .brand-logo { width: 36px; height: 36px; flex-shrink: 0; box-sizing: border-box; }
@@ -221,6 +222,20 @@ dl.facts dd { margin: 2px 0 0; font-weight: 600; }
 .logo-option:hover { border-color: var(--accent); }
 .logo-option img { width: 48px; height: 48px; }
 .print-logo { width: 56px; height: 56px; object-fit: contain; }
+
+/* A table cell with a value and a small button after it (e.g. RealOEM). */
+.cell-with-action { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.cell-with-action > input { flex: 1 1 120px; min-width: 0; }
+.btn.realoem-link { min-height: 26px; padding: 0 6px; font-size: 12px; gap: 4px; white-space: nowrap; }
+
+/* ---------- time spent ---------- */
+.time-controls { display: flex; flex-direction: column; gap: 10px; padding: 0 18px 14px; }
+.time-running { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 12px; border-radius: 10px; background: var(--accent-soft); border: 1px solid #fed7aa; }
+.time-big { font-size: 22px; font-weight: 700; }
+.time-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); animation: time-pulse 1.6s ease-in-out infinite; }
+@keyframes time-pulse { 50% { opacity: .3; } }
+@media (prefers-reduced-motion: reduce) { .time-dot { animation: none; } }
+.btn.danger-solid { background: var(--bad); border-color: var(--bad); color: #fff; }
 
 /* ---------- update banner ---------- */
 .update-banner { position: sticky; top: 0; z-index: 20; padding: 12px 28px; background: #262a33; color: #fff; display: flex; flex-direction: column; gap: 10px; border-bottom: 3px solid var(--accent); }

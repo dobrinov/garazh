@@ -5,6 +5,7 @@ use crate::backup;
 use crate::faultcodes::{self, FaultScan};
 use crate::links::{self, Link};
 use crate::schedule::{self, CarSchedule, ManualDone};
+use crate::timelog::{self, TimeEntry, TimeLog};
 use crate::vin::{self, VinResult};
 use crate::config::AppConfig;
 use crate::model::*;
@@ -56,7 +57,7 @@ fn not_found(id: &str) -> ApiError {
 /// Feature switches kept in сервиз.md. A switch that is not written down
 /// takes its default; the same defaults are in src/lib/features.ts.
 pub fn feature_on(shop: &Shop, key: &str) -> bool {
-    shop.features.get(key).copied().unwrap_or(key != "stock")
+    shop.features.get(key).copied().unwrap_or(!matches!(key, "stock" | "timeTracking"))
 }
 
 fn features(st: &Store) -> Shop {
@@ -302,6 +303,18 @@ pub struct CarPageData {
     pub schedule: Option<CarSchedule>,
     pub links: Vec<Link>,
     pub quotes: Vec<QuoteSummary>,
+    /// Only when time tracking is switched on.
+    pub time: Option<CarTime>,
+}
+
+#[derive(Serialize, Debug, Default)]
+pub struct CarTime {
+    /// Finished time on all the car's work orders.
+    pub totalMinutes: u32,
+    /// Per work order id.
+    pub orders: std::collections::BTreeMap<String, u32>,
+    /// Work orders with a timer running now.
+    pub running: Vec<String>,
 }
 
 #[tauri::command]
@@ -318,7 +331,21 @@ pub fn get_car(state: State<AppState>, id: String) -> R<CarPageData> {
     let links = if feature_on(&shop, "links") { links::for_car(&st.links_dir(), &car.0.data) } else { vec![] };
     let mut quotes: Vec<QuoteSummary> = scan.quotes.iter().filter(|q| q.data.carId == id).map(|q| quote_summary(&scan, q)).collect();
     quotes.sort_by(|a, b| b.quote.date.cmp(&a.quote.date));
-    Ok(CarPageData { detail, schedule, links, quotes })
+    let time = feature_on(&shop, "timeTracking").then(|| {
+        let mut t = CarTime::default();
+        for o in scan.orders.iter().filter(|o| o.data.carId == id) {
+            let l = timelog::log(Path::new(&o.dir));
+            if l.entries.iter().any(|e| e.running()) {
+                t.running.push(o.data.id.clone());
+            }
+            if l.totalMinutes > 0 {
+                t.orders.insert(o.data.id.clone(), l.totalMinutes);
+            }
+            t.totalMinutes += l.totalMinutes;
+        }
+        t
+    });
+    Ok(CarPageData { detail, schedule, links, quotes, time })
 }
 
 fn car_detail(st: &Store, scan: &store::Scan, id: &str) -> R<CarDetail> {
@@ -365,6 +392,37 @@ pub fn get_order(state: State<AppState>, id: String) -> R<OrderDetail> {
 pub fn save_order(state: State<AppState>, input: SaveInput<WorkOrder>) -> R<Loaded<WorkOrder>> {
     let _g = state.write_lock.lock().unwrap();
     Ok(store(&state)?.save_order(input)?)
+}
+
+// ---------- time spent (optional) ----------
+
+#[tauri::command]
+pub fn order_time(state: State<AppState>, id: String) -> R<TimeLog> {
+    Ok(timelog::log(&store(&state)?.order_dir(&id)?))
+}
+
+#[tauri::command]
+pub fn time_start(state: State<AppState>, id: String, mechanic: String) -> R<TimeLog> {
+    let _g = state.write_lock.lock().unwrap();
+    Ok(timelog::start(&store(&state)?.order_dir(&id)?, &mechanic, timelog::now())?)
+}
+
+#[tauri::command]
+pub fn time_stop(state: State<AppState>, id: String, entry: TimeEntry) -> R<TimeLog> {
+    let _g = state.write_lock.lock().unwrap();
+    Ok(timelog::stop(&store(&state)?.order_dir(&id)?, &entry, timelog::now())?)
+}
+
+#[tauri::command]
+pub fn time_add(state: State<AppState>, id: String, entry: TimeEntry) -> R<TimeLog> {
+    let _g = state.write_lock.lock().unwrap();
+    Ok(timelog::add(&store(&state)?.order_dir(&id)?, entry)?)
+}
+
+#[tauri::command]
+pub fn time_remove(state: State<AppState>, id: String, entry: TimeEntry) -> R<TimeLog> {
+    let _g = state.write_lock.lock().unwrap();
+    Ok(timelog::remove(&store(&state)?.order_dir(&id)?, &entry)?)
 }
 
 #[tauri::command]

@@ -4,8 +4,25 @@ import { errorMessage } from "../api";
 
 export function LinksCard({ links, car, onCopy }: { links: UsefulLink[]; car: Car; onCopy: (text: string, what: string) => void }) {
   const toast = useToast();
-  const open = (url: string) => api.openUrl(url).catch((e) => toast(errorMessage(e), true));
-  const files = [...new Set(links.map((l) => l.file))];
+  async function open(l: UsefulLink) {
+    // Sites that cannot take the VIN or plate in the address get it on the
+    // clipboard, ready for Ctrl+V in their search box.
+    let copied = false;
+    if (l.copy) {
+      try {
+        await navigator.clipboard.writeText(l.copy);
+        copied = true;
+      } catch {
+        /* open anyway */
+      }
+    }
+    try {
+      await api.openUrl(l.url);
+      if (copied) toast(`${l.copyLabel || "Текстът"} ${l.copy} е копиран – поставете го в сайта с Ctrl+V`);
+    } catch (e) {
+      toast(errorMessage(e), true);
+    }
+  }
   return (
     <div className="card pad" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       <div className="row" style={{ justifyContent: "space-between" }}>
@@ -16,11 +33,16 @@ export function LinksCard({ links, car, onCopy }: { links: UsefulLink[]; car: Ca
       </div>
       {links.length === 0 && <span className="muted small">Няма връзки за тази марка. Добавете ги във файл в папка „справочници\марки“.</span>}
       {links.map((l, i) => (
-        <button key={i} className="link-row" onClick={() => open(l.url)} title={l.url}>
+        <button key={i} className="link-row" onClick={() => open(l)} title={l.copy ? `${l.url}\nКопира ${l.copyLabel}: ${l.copy}` : l.url}>
           <Icon name="link" size={15} />
           <span>
             <span className="link-name">{l.name}</span>
-            {l.note && <span className="small muted" style={{ display: "block" }}>{l.note}</span>}
+            {(l.note || l.copy) && (
+              <span className="small muted" style={{ display: "block" }}>
+                {l.note}
+                {l.copy && <span className="link-copy">{l.note ? " · " : ""}копира {l.copyLabel === "VIN" ? "VIN" : l.copyLabel.toLowerCase()}</span>}
+              </span>
+            )}
           </span>
         </button>
       ))}
@@ -30,7 +52,6 @@ export function LinksCard({ links, car, onCopy }: { links: UsefulLink[]; car: Ca
           {car.engineCode && <button className="btn small" onClick={() => onCopy(car.engineCode, "Кодът на двигателя")}><Icon name="copy" size={14} />{car.engineCode}</button>}
         </div>
       )}
-      {files.length > 0 && <span className="small muted">Копирайте VIN и го поставете в каталога.</span>}
     </div>
   );
 }

@@ -4,10 +4,12 @@ import { api, CarPage as CarData, errorMessage } from "../api";
 import { useFeatures } from "../components/features";
 import { Files } from "../components/Files";
 import { LinksCard } from "../components/Links";
+import { RealOemPartLinks } from "../components/RealOem";
 import { QuoteList } from "./Quotes";
 import { ScheduleTab } from "../components/Schedule";
 import { DeadlineBadge, Icon, Loading, Plate, StatusBadge, useLoad, useToast } from "../components/ui";
 import { date, euro, int, km, todayIso } from "../lib/format";
+import { formatMinutes } from "../lib/time";
 
 type Tab = "usage" | "orders" | "parts" | "docs" | "schedule" | "quotes";
 type CarDetail = CarData;
@@ -50,6 +52,12 @@ export function CarPage() {
             <div>
               <h1>{c.make} {c.model}</h1>
               <div className="muted">{[c.year, c.fuel, c.color].filter(Boolean).join(" · ")}</div>
+              {data.time && (data.time.totalMinutes > 0 || data.time.running.length > 0) && (
+                <div className="small" style={{ marginTop: 4 }}>
+                  <Icon name="clock" size={14} /> Отработено: <strong className="mono">{formatMinutes(data.time.totalMinutes)}</strong> ч
+                  {data.time.running.length > 0 && <span className="muted"> · таймерът тече</span>}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -130,14 +138,14 @@ export function CarPage() {
   );
 }
 
-function OrdersTab({ data }: { data: CarDetail }) {
+function OrdersTab({ data }: { data: CarData }) {
   const nav = useNavigate();
   if (data.orders.length === 0) return <div className="card empty">Няма ремонти. <Link to={`/orders/new?car=${data.car.data.id}`}>Нова работна карта</Link></div>;
   return (
     <section className="card">
       <div className="table-wrap">
         <table className="tbl">
-          <thead><tr><th>Дата</th><th className="right">Пробег</th><th>Номер</th><th>Работа</th><th className="right">Сума</th><th>Статус</th></tr></thead>
+          <thead><tr><th>Дата</th><th className="right">Пробег</th><th>Номер</th><th>Работа</th>{data.time && <th className="right">Време</th>}<th className="right">Сума</th><th>Статус</th></tr></thead>
           <tbody>
             {data.orders.map((o) => (
               <tr key={o.order.id} className="link" onClick={() => nav(`/orders/${o.order.id}`)}>
@@ -145,6 +153,7 @@ function OrdersTab({ data }: { data: CarDetail }) {
                 <td className="mono small right">{km(o.order.mileage)}</td>
                 <td className="mono small">{o.order.number}</td>
                 <td><strong>{o.order.title || "—"}</strong><div className="small muted">{o.order.labor.map((l) => l.description).filter(Boolean).join(", ")}</div></td>
+                {data.time && <td className="mono small right">{data.time.orders[o.order.id] ? formatMinutes(data.time.orders[o.order.id]) : ""}{data.time.running.includes(o.order.id) && " ⏱"}</td>}
                 <td className="mono small right">{euro(o.totals.total)}</td>
                 <td><StatusBadge status={o.order.status} /></td>
               </tr>
@@ -211,7 +220,7 @@ function PartsTab({ data, onChange }: { data: CarDetail; onChange: () => void })
                   <td className="mono small">{date(p.date)}</td>
                   <td className="mono small right"><strong>{int(p.km)}</strong></td>
                   <td><strong>{p.part}</strong></td>
-                  <td className="small">{p.brand}</td>
+                  <td className="small"><div className="cell-with-action">{p.brand}<RealOemPartLinks make={data.car.data.make} text={`${p.brand} ${p.part}`} /></div></td>
                   <td className="right nowrap">{p.quantity}</td>
                   <td className="right nowrap mono small">{p.price ? euro(p.price) : ""}</td>
                   <td className="mono small">{p.order}</td>

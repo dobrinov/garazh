@@ -279,6 +279,10 @@ export interface UsefulLink {
   name: string;
   url: string;
   note: string;
+  /** Copied to the clipboard when the link opens (e.g. the VIN); "" for none. */
+  copy: string;
+  /** What `copy` is: "VIN", "Рег. номер"… */
+  copyLabel: string;
   group: string;
   file: string;
 }
@@ -351,6 +355,29 @@ export interface CarPage extends CarDetail {
   schedule: CarSchedule | null;
   links: UsefulLink[];
   quotes: QuoteSummary[];
+  /** Only when time tracking is switched on. */
+  time: CarTime | null;
+}
+
+export interface TimeEntry {
+  date: string;
+  start: string;
+  end: string;
+  /** null while the timer runs. */
+  minutes: number | null;
+  mechanic: string;
+  note: string;
+}
+
+export interface TimeLog {
+  entries: TimeEntry[];
+  totalMinutes: number;
+}
+
+export interface CarTime {
+  totalMinutes: number;
+  orders: Record<string, number>;
+  running: string[];
 }
 
 export interface Problem {
@@ -432,6 +459,11 @@ export const api = {
   addParts: (carId: string, rows: PartRow[]) => invoke<void>("add_parts", { carId, rows }),
 
   getOrder: (id: string) => invoke<OrderDetail>("get_order", { id }),
+  orderTime: (id: string) => invoke<TimeLog>("order_time", { id }),
+  timeStart: (id: string, mechanic: string) => invoke<TimeLog>("time_start", { id, mechanic }),
+  timeStop: (id: string, entry: TimeEntry) => invoke<TimeLog>("time_stop", { id, entry }),
+  timeAdd: (id: string, entry: TimeEntry) => invoke<TimeLog>("time_add", { id, entry }),
+  timeRemove: (id: string, entry: TimeEntry) => invoke<TimeLog>("time_remove", { id, entry }),
   saveOrder: (input: SaveInput<WorkOrder>) => invoke<Loaded<WorkOrder>>("save_order", { input }),
   closeOrder: (id: string) => invoke<Loaded<WorkOrder>>("close_order", { id }),
 

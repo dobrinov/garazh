@@ -6,6 +6,7 @@ import { useBrand } from "../components/brand";
 import { useFeatures } from "../components/features";
 import { Files } from "../components/Files";
 import { LaborTable, PartsTable, PrintLines } from "../components/Lines";
+import { TimeLogCard } from "../components/TimeLog";
 import { Icon, Loading, Plate, TextField, useToast } from "../components/ui";
 import { date, euro, int, km, STATUS_LABEL, STATUS_ORDER, todayIso } from "../lib/format";
 import { computeTotals } from "../lib/totals";
@@ -196,7 +197,20 @@ export function WorkOrderPage() {
 
           <LaborTable title="Извършени дейности (труд)" lines={order.labor} onChange={(labor) => update({ labor })} rate={ctx.shop.laborRate} mechanic={order.mechanic} />
 
-          <PartsTable title="Части и консумативи" hint="При приключване се записват в историята на колата с пробега от приемането." lines={order.parts} onChange={(parts) => update({ parts })} />
+          {features.timeTracking && (id ? (
+            <TimeLogCard
+              orderId={id}
+              mechanic={order.mechanic}
+              onAddLabor={(hours, mechanic) => {
+                update({ labor: [...order.labor, { description: "Отработено време", mechanic, hours, rate: ctx.shop.laborRate }] });
+                toast(`Добавен ред за труд: ${hours} ч. Запазете картата.`);
+              }}
+            />
+          ) : (
+            <section className="card pad muted">Запазете картата, за да пуснете таймер за отработено време.</section>
+          ))}
+
+          <PartsTable title="Части и консумативи" hint="При приключване се записват в историята на колата с пробега от приемането." lines={order.parts} onChange={(parts) => update({ parts })} make={ctx.car.make} />
 
           <section className="card pad">
             <h2 style={{ marginBottom: 12 }}>Диагностика и файлове</h2>

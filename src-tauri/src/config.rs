@@ -19,7 +19,7 @@ pub struct AppConfig {
     /// Set (only in what the UI receives) when dataDir points at a folder
     /// that no longer holds the data, e.g. it was deleted or the drive is
     /// not connected. Never read back from config.json.
-    #[serde(skip_deserializing)]
+    #[serde(skip_deserializing, skip_serializing_if = "Option::is_none")]
     pub missingDataDir: Option<String>,
 }
 

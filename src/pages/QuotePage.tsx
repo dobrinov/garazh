@@ -255,7 +255,7 @@ export function QuotePage() {
             onChange={(labor) => update({ labor })}
             rate={ctx.shop.laborRate}
           />
-          <PartsTable title={isQuote ? "Части" : q.kind === "доклад" ? "Сменени части" : "Препоръчани части"} lines={q.parts} onChange={(parts) => update({ parts })} />
+          <PartsTable title={isQuote ? "Части" : q.kind === "доклад" ? "Сменени части" : "Препоръчани части"} lines={q.parts} onChange={(parts) => update({ parts })} make={ctx.car.make} />
 
           <section className="card pad" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <label className="field">

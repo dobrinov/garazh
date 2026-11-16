@@ -12,6 +12,7 @@ pub mod md;
 pub mod model;
 pub mod names;
 pub mod store;
+pub mod timelog;
 pub mod usage;
 pub mod views;
 
@@ -56,6 +57,11 @@ pub fn run() {
             commands::get_order,
             commands::save_order,
             commands::close_order,
+            commands::order_time,
+            commands::time_start,
+            commands::time_stop,
+            commands::time_add,
+            commands::time_remove,
             commands::attach_files,
             commands::record_dir,
             commands::open_url,
