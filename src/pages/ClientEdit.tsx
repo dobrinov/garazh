@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { api, Client, emptyClient, errorMessage, isConflict } from "../api";
 import { Loading, TextField, useToast } from "../components/ui";
 import { todayIso } from "../lib/format";
@@ -8,11 +8,25 @@ export function ClientEdit() {
   const { id } = useParams();
   const nav = useNavigate();
   const toast = useToast();
-  const [client, setClient] = useState<Client | null>(id ? null : emptyClient());
+  const [params] = useSearchParams();
+  // From "Приеми кола" or an expected car: a new client starts with what is known.
+  const expectedId = id ? null : params.get("expected");
+  const [client, setClient] = useState<Client | null>(id ? null : { ...emptyClient(), name: params.get("name") ?? "", phone: params.get("phone") ?? "" });
   const [notes, setNotes] = useState("");
   const [hash, setHash] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!expectedId) return;
+    api
+      .listExpected()
+      .then((rows) => {
+        const e = rows.find((r) => r.id === expectedId);
+        if (e) setClient((c) => (c ? { ...c, name: c.name || e.client, phone: c.phone || e.phone } : c));
+      })
+      .catch(() => undefined);
+  }, [expectedId]);
 
   useEffect(() => {
     if (!id) return;
@@ -36,7 +50,17 @@ export function ClientEdit() {
     try {
       const saved = await api.saveClient({ data: client, notes, baseHash: hash });
       toast("Клиентът е запазен");
-      nav(`/clients/${saved.data.id}`, { replace: true });
+      if (!id && (expectedId || params.get("intake"))) {
+        // Receiving a car: the car comes next, then its work order.
+        const next = new URLSearchParams({ client: saved.data.id });
+        if (expectedId) next.set("expected", expectedId);
+        if (params.get("plate")) next.set("plate", params.get("plate")!);
+        if (params.get("status")) next.set("status", params.get("status")!);
+        if (params.get("intake")) next.set("intake", "1");
+        nav(`/cars/new?${next}`, { replace: true });
+      } else {
+        nav(`/clients/${saved.data.id}`, { replace: true });
+      }
     } catch (err) {
       toast(isConflict(err) ? "Файлът на клиента е променен извън програмата. Отворете го отново и повторете промените." : errorMessage(err), true);
     } finally {
@@ -48,8 +72,9 @@ export function ClientEdit() {
     <form className="page" onSubmit={save}>
       <div className="page-head">
         <div>
-          <div className="crumbs"><Link to="/clients">Клиенти</Link><span>/</span><span>{id ? client.name : "Нов клиент"}</span></div>
+          <div className="crumbs"><Link to="/clients">Клиенти и коли</Link><span>/</span><span>{id ? client.name : "Нов клиент"}</span></div>
           <h1>{id ? "Редактиране на клиент" : "Нов клиент"}</h1>
+          {(expectedId || params.get("intake")) && <div className="muted">Приемане на кола: 1. клиент → 2. кола → 3. работна карта</div>}
         </div>
         <div className="row">
           <button type="button" className="btn" onClick={() => nav(-1)}>Отказ</button>

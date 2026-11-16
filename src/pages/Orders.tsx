@@ -1,74 +1,492 @@
-import { useMemo, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { api } from "../api";
-import { Icon, Loading, Plate, StatusBadge, useLoad } from "../components/ui";
-import { date, euro, matches } from "../lib/format";
+import { FormEvent, PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from "react";
+import { Link, NavigateFunction, useNavigate, useSearchParams } from "react-router-dom";
+import { api, emptyExpected, errorMessage, Expected, ExpectedRow, notifyChanged, OrderStatus, OrderSummary } from "../api";
+import { ExpectedForm } from "../components/ExpectedForm";
+import { fillBlanks, fillFromKnown, KnownPicked, KnownSuggestions, useKnownPick } from "../components/KnownCars";
+import { useFeatures } from "../components/features";
+import { useSearch } from "../components/Search";
+import { Icon, Loading, Menu, Plate, StatusBadge, useLoad, useNow, useToast } from "../components/ui";
+import { date, euro, matches, STATUS_LABEL, todayIso } from "../lib/format";
+import { BOARD_STAGES, formatDuration, isStaleReady, stageOf, timeInStage } from "../lib/stages";
+import { QuotesPanel } from "./Quotes";
 
-type Filter = "open" | "unpaid" | "all";
+type Tab = "shop" | "unpaid" | "all" | "quotes";
+type View = "board" | "list";
+
+const VIEW_KEY = "garazh.ordersView";
+
+function savedView(): View {
+  try {
+    return localStorage.getItem(VIEW_KEY) === "list" ? "list" : "board";
+  } catch {
+    return "board";
+  }
+}
+
+/** Receive a car that was announced by phone, optionally straight into a later stage. */
+export async function receiveExpected(e: ExpectedRow, nav: NavigateFunction, status?: OrderStatus) {
+  if (e.openOrder) return nav(`/orders/${e.openOrder}`);
+  const p = new URLSearchParams({ expected: e.id });
+  if (status && status !== "приета") p.set("status", status);
+  if (e.carId) {
+    p.set("car", e.carId);
+    if (e.complaint) p.set("complaint", e.complaint);
+    return nav(`/orders/new?${p}`);
+  }
+  // Not in the program yet: client, then car, then the work order.
+  nav(`/clients/new?${p}`);
+}
 
 export function Orders() {
   const nav = useNavigate();
-  const { data, error } = useLoad(() => api.listOrders(), []);
-  const [params] = useSearchParams();
+  const toast = useToast();
+  const features = useFeatures();
+  const search = useSearch();
+  const [params, setParams] = useSearchParams();
+  const { data, error, setData } = useLoad(() => api.listOrders(), []);
+  const expectedLoad = useLoad(() => api.listExpected(), []);
   // ?q=РК-… (e.g. from the stock movements) searches all work orders.
   const [q, setQ] = useState(params.get("q") ?? "");
-  const [filter, setFilter] = useState<Filter>(params.get("q") ? "all" : "open");
+  const tabParam = params.get("tab") as Tab | null;
+  const tab: Tab = tabParam && ["shop", "unpaid", "all", "quotes"].includes(tabParam) ? tabParam : params.get("q") ? "all" : "shop";
+  const [view, setViewState] = useState<View>(savedView);
+  const [editing, setEditing] = useState<Expected | null>(null);
+  const setView = (v: View) => {
+    setViewState(v);
+    try {
+      localStorage.setItem(VIEW_KEY, v);
+    } catch {
+      /* the choice is only a convenience */
+    }
+  };
+  const setTab = (t: Tab) => {
+    const p = new URLSearchParams(params);
+    p.set("tab", t);
+    p.delete("q");
+    setParams(p, { replace: true });
+  };
 
+  const today = todayIso();
   const rows = useMemo(() => {
     if (!data) return [];
     return data.filter((o) => {
-      if (filter === "open" && o.order.status === "предадена") return false;
-      if (filter === "unpaid" && !(o.order.closedOn && !o.order.paid)) return false;
+      if (tab === "shop" && (stageOf(o.order.status) === "предадена" || isStaleReady(o.order, today))) return false;
+      if (tab === "unpaid" && !(o.order.closedOn && !o.order.paid)) return false;
       return matches(q, [o.plate], [o.order.number, o.order.title, o.order.complaint, o.clientName, o.carName]);
     });
-  }, [data, q, filter]);
+  }, [data, q, tab, today]);
+
+  const expected = useMemo(
+    () => (expectedLoad.data ?? []).filter((e) => matches(q, [e.plate], [e.client, e.phone, e.car, e.complaint])),
+    [expectedLoad.data, q],
+  );
 
   if (!data) return <Loading error={error} />;
+  const open = data.filter((o) => stageOf(o.order.status) !== "предадена" && !isStaleReady(o.order, today)).length;
+  const stale = data.filter((o) => isStaleReady(o.order, today)).length;
+  const unpaid = data.filter((o) => o.order.closedOn && !o.order.paid).length;
+
+  async function move(id: string, status: OrderStatus) {
+    const before = data;
+    // Show the move at once; put it back if the file could not be written.
+    setData((before ?? []).map((o) => (o.order.id === id ? { ...o, order: { ...o.order, status } } : o)));
+    try {
+      const saved = await api.setOrderStatus(id, status);
+      // Take the saved order, so the card shows the new time in its column.
+      setData((cur) => (cur ?? []).map((o) => (o.order.id === id ? { ...o, order: saved.data } : o)));
+      notifyChanged();
+    } catch (e) {
+      setData(before);
+      toast(errorMessage(e), true);
+    }
+  }
 
   return (
     <div className="page">
       <div className="page-head">
         <div>
           <h1>Работни карти</h1>
-          <div className="muted">{data.length} общо</div>
-        </div>
-        <Link className="btn primary" to="/cars"><Icon name="plus" />Нова работна карта</Link>
-      </div>
-      <section className="card pad" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        <label className="search">
-          <Icon name="search" color="var(--muted)" />
-          <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Номер, рег. номер, клиент, работа" aria-label="Търси работна карта" />
-        </label>
-        <div className="chips">
-          {([["open", "Отворени"], ["unpaid", "Неплатени"], ["all", "Всички"]] as [Filter, string][]).map(([f, l]) => (
-            <button key={f} className={`chip ${filter === f ? "on" : ""}`} aria-pressed={filter === f} onClick={() => setFilter(f)}>{l}</button>
-          ))}
-        </div>
-      </section>
-      <section className="card">
-        {rows.length === 0 ? (
-          <div className="empty">{data.length === 0 ? "Още няма работни карти. Започнете от страницата на автомобила." : "Няма съвпадения."}</div>
-        ) : (
-          <div className="table-wrap">
-            <table className="tbl">
-              <thead><tr><th>Номер</th><th>Дата</th><th>Автомобил</th><th>Клиент</th><th>Работа</th><th className="right">Сума</th><th>Статус</th></tr></thead>
-              <tbody>
-                {rows.map((o) => (
-                  <tr key={o.order.id} className="link" onClick={() => nav(`/orders/${o.order.id}`)}>
-                    <td className="mono small">{o.order.number}</td>
-                    <td className="mono small">{date(o.order.date)}</td>
-                    <td><Plate value={o.plate} /><div className="small muted">{o.carName}</div></td>
-                    <td>{o.clientName}</td>
-                    <td>{o.order.title || o.order.complaint || "—"}</td>
-                    <td className="mono small right">{euro(o.totals.total)}</td>
-                    <td><StatusBadge status={o.order.status} />{o.order.closedOn && !o.order.paid && <span className="badge bad" style={{ marginLeft: 6 }}>Неплатена</span>}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="muted">
+            {open} в сервиза{expectedLoad.data?.length ? ` · ${expectedLoad.data.length} очаквани` : ""} · {unpaid} неплатени · {data.length} общо
           </div>
-        )}
-      </section>
+        </div>
+        <div className="row">
+          {tab === "shop" && (
+            <div className="seg" role="group" aria-label="Изглед">
+              <button type="button" aria-pressed={view === "board"} onClick={() => setView("board")}><Icon name="board" size={16} />Табло</button>
+              <button type="button" aria-pressed={view === "list"} onClick={() => setView("list")}><Icon name="list" size={16} />Списък</button>
+            </div>
+          )}
+          {!(tab === "shop" && view === "board") && (
+            <button type="button" className="btn" onClick={() => setEditing(emptyExpected())}><Icon name="phone" size={16} />Очакван</button>
+          )}
+          <button type="button" className="btn primary" onClick={() => search("intake")}><Icon name="plus" />Приеми кола</button>
+        </div>
+      </div>
+
+      <div className="tabs" role="tablist">
+        <button role="tab" aria-selected={tab === "shop"} className={tab === "shop" ? "on" : ""} onClick={() => setTab("shop")}>В сервиза <span className="muted">{open}</span></button>
+        <button role="tab" aria-selected={tab === "unpaid"} className={tab === "unpaid" ? "on" : ""} onClick={() => setTab("unpaid")}>Неплатени {unpaid > 0 && <span style={{ color: "var(--bad)" }}>{unpaid}</span>}</button>
+        <button role="tab" aria-selected={tab === "all"} className={tab === "all" ? "on" : ""} onClick={() => setTab("all")}>Всички</button>
+        {features.quotes && <button role="tab" aria-selected={tab === "quotes"} className={tab === "quotes" ? "on" : ""} onClick={() => setTab("quotes")}>Оферти и доклади</button>}
+      </div>
+
+      {tab === "quotes" ? (
+        <QuotesPanel />
+      ) : (
+        <>
+          <label className="search">
+            <Icon name="search" color="var(--muted)" />
+            <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Номер, рег. номер, клиент, работа" aria-label="Търси работна карта" />
+          </label>
+          {tab === "shop" && stale > 0 && (
+            <div className="muted small">
+              {stale} {stale === 1 ? "готова кола отпреди повече от месец не се показва" : "готови коли отпреди повече от месец не се показват"} тук – вероятно са взети.{" "}
+              <button type="button" className="link-btn" onClick={() => setTab("all")}>Виж ги във „Всички“</button>
+            </div>
+          )}
+          {tab === "shop" && view === "board" ? (
+            <Board rows={rows} expected={expected} onMove={move} onEditExpected={setEditing} onAdded={expectedLoad.reload} />
+          ) : (
+            <>
+              {tab === "shop" && expected.length > 0 && <ExpectedList rows={expected} onEdit={setEditing} />}
+              <section className="card">
+                {rows.length === 0 ? (
+                  <div className="empty">{data.length === 0 ? "Още няма работни карти. Натиснете „Приеми кола“." : "Няма съвпадения."}</div>
+                ) : (
+                  <div className="table-wrap">
+                    <table className="tbl">
+                      <thead><tr><th>Номер</th><th>Дата</th><th>Автомобил</th><th>Клиент</th><th>Работа</th><th className="right">Сума</th><th>Етап</th></tr></thead>
+                      <tbody>
+                        {rows.map((o) => (
+                          <tr key={o.order.id} className="link" onClick={() => nav(`/orders/${o.order.id}`)}>
+                            <td className="mono small"><Link to={`/orders/${o.order.id}`} onClick={(e) => e.stopPropagation()}>{o.order.number}</Link></td>
+                            <td className="mono small">{date(o.order.date)}</td>
+                            <td><Plate value={o.plate} /><div className="small muted">{o.carName}</div></td>
+                            <td>{o.clientName}</td>
+                            <td>{o.order.title || o.order.complaint || "—"}</td>
+                            <td className="mono small right">{euro(o.totals.total)}</td>
+                            <td><StatusBadge status={stageOf(o.order.status)} />{o.order.closedOn && !o.order.paid && <span className="badge bad" style={{ marginLeft: 6 }}>Неплатена</span>}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </section>
+            </>
+          )}
+        </>
+      )}
+
+      {editing && (
+        <ExpectedForm
+          row={editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => {
+            setEditing(null);
+            expectedLoad.reload();
+          }}
+        />
+      )}
     </div>
   );
+}
+
+function Board({
+  rows,
+  expected,
+  onMove,
+  onEditExpected,
+  onAdded,
+}: {
+  rows: OrderSummary[];
+  expected: ExpectedRow[];
+  onMove: (id: string, status: OrderStatus) => void;
+  onEditExpected: (e: Expected) => void;
+  onAdded: () => void;
+}) {
+  const nav = useNavigate();
+  const toast = useToast();
+  const search = useSearch();
+  const now = useNow();
+  const [adding, setAdding] = useState(false);
+  const drag = useCardDrag((what, stage) => {
+    if (what.kind === "expected") {
+      // An expected car dropped on a stage: receive it into that stage.
+      const ex = expected.find((x) => x.id === what.id);
+      if (ex) receiveExpected(ex, nav, stage).catch((err) => toast(errorMessage(err), true));
+      return;
+    }
+    const card = rows.find((o) => o.order.id === what.id);
+    if (card && stageOf(card.order.status) !== stage) onMove(what.id, stage);
+  });
+  const over = drag.over;
+  return (
+    <>
+      <div className="board-wrap">
+        <div className="board">
+          <section className="board-col expected" aria-label="Очаквани">
+            <div className="board-head">
+              <span className="dot" />Очаквани<span className="muted">{expected.length}</span>
+              <button type="button" className="col-add" onClick={() => setAdding(!adding)} aria-expanded={adding} aria-label="Нова очаквана кола" title="Обади се клиент – запиши го тук">+</button>
+            </div>
+            {adding && <QuickExpected onDone={() => { setAdding(false); onAdded(); }} onCancel={() => setAdding(false)} />}
+            {expected.map((e) => (
+              <div
+                key={e.id}
+                className={`kcard ${drag.dragging?.id === e.id ? "lifted" : ""}`}
+                onPointerDown={e.openOrder ? undefined : (ev) => drag.start(ev, { kind: "expected", id: e.id, label: e.plate || e.client })}
+              >
+                <div className="row" style={{ justifyContent: "space-between" }}>
+                  <Plate value={e.plate} />
+                  <span className={`badge ${e.date ? "info" : "muted"}`}>{e.date ? `${e.date === todayIso() ? "днес" : date(e.date)} ${e.time}` : "без ден"}</span>
+                </div>
+                <div>
+                  <strong>{e.complaint || "—"}</strong>
+                  <div className="small muted">{[e.car, e.client].filter(Boolean).join(" · ")}</div>
+                </div>
+                <div className="kcard-foot">
+                  {e.phone ? <a href={`tel:${e.phone}`} className="small">{e.phone}</a> : <span className="small muted">обаждане {date(e.calledOn)}</span>}
+                  <span className="row" style={{ gap: 4 }}>
+                    <button type="button" className="btn small" onClick={() => onEditExpected(e)} aria-label={`Промени очаквания ${e.plate || e.client}`}>Промени</button>
+                    <button type="button" className="btn small primary" onClick={() => receiveExpected(e, nav).catch((err) => toast(errorMessage(err), true))}>{e.openOrder ? "Отвори" : "Приеми"}</button>
+                  </span>
+                </div>
+              </div>
+            ))}
+            {expected.length === 0 && !adding && (
+              <button type="button" className="board-empty link-btn" onClick={() => setAdding(true)}>Обадил се клиент? Натиснете +, за да го запишете.</button>
+            )}
+          </section>
+          {BOARD_STAGES.map((s) => {
+            const cards = rows.filter((o) => stageOf(o.order.status) === s);
+            return (
+              <section key={s} data-stage={s} className={`board-col stage-${s} ${over === s ? "over" : ""}`} aria-label={STATUS_LABEL[s]}>
+                <div className="board-head">
+                  <span className="dot" />{STATUS_LABEL[s]}<span className="muted">{cards.length}</span>
+                  <button type="button" className="col-add" onClick={() => search("intake", s)} aria-label={`Приеми кола направо в „${STATUS_LABEL[s]}“`} title={`Приеми кола направо в „${STATUS_LABEL[s]}“`}>+</button>
+                </div>
+                {cards.map((o) => (
+                  <Link
+                    key={o.order.id}
+                    to={`/orders/${o.order.id}`}
+                    className={`kcard ${drag.dragging?.id === o.order.id ? "lifted" : ""}`}
+                    draggable={false}
+                    onPointerDown={(e) => drag.start(e, { kind: "order", id: o.order.id, label: o.plate || o.order.number })}
+                    onClick={(e) => drag.wasDrag() && e.preventDefault()}
+                  >
+                    <div className="row" style={{ justifyContent: "space-between" }}>
+                      <Plate value={o.plate} />
+                      <span className="row" style={{ gap: 4 }}>
+                        <span className="mono small muted">{o.order.number}</span>
+                        <span onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
+                          <Menu
+                            small
+                            label="Етап"
+                            items={BOARD_STAGES.filter((x) => x !== s).map((x) => ({ label: `→ ${STATUS_LABEL[x]}`, onSelect: () => onMove(o.order.id, x) }))}
+                          />
+                        </span>
+                      </span>
+                    </div>
+                    <div>
+                      <strong>{o.order.title || o.order.complaint || "Работна карта"}</strong>
+                      <div className="small muted">{[o.carName, o.clientName].filter(Boolean).join(" · ")}</div>
+                    </div>
+                    <div className="kcard-foot small">
+                      <span className="muted">
+                        {o.order.mechanic || "без механик"} ·{" "}
+                        {(() => {
+                          const t = timeInStage(o.order, now);
+                          return t ? <span title="Откакто картата е в тази колона">{t.approx ? "≈ " : ""}{formatDuration(t.minutes)} тук</span> : `от ${date(o.order.date)}`;
+                        })()}
+                      </span>
+                      {o.order.closedOn && !o.order.paid ? <span className="badge bad">Неплатена</span> : o.order.closedOn ? <span className="badge ok">Приключена</span> : null}
+                    </div>
+                  </Link>
+                ))}
+                {cards.length === 0 && <div className="board-empty">Няма коли на този етап</div>}
+              </section>
+            );
+          })}
+        </div>
+      </div>
+      {drag.dragging && drag.pos && (
+        <div className="drag-ghost" style={{ left: drag.pos.x + 12, top: drag.pos.y + 12 }} aria-hidden="true">
+          {drag.dragging.label} {drag.over && drag.over !== "expected" ? `→ ${STATUS_LABEL[drag.over]}` : ""}
+        </div>
+      )}
+      <p className="muted small" style={{ margin: 0 }}>
+        Хванете карта и я пуснете в друга колона, за да смените етапа, или изберете от „Етап“ на картата. Очаквана кола, пусната в колона, се приема направо на този етап. С + на всяка колона приемате кола направо там. Предадените коли излизат от таблото – „Предай и приключи“ е в самата работна карта.
+      </p>
+    </>
+  );
+}
+
+function ExpectedList({ rows, onEdit }: { rows: ExpectedRow[]; onEdit: (e: Expected) => void }) {
+  const nav = useNavigate();
+  const toast = useToast();
+  return (
+    <section className="card">
+      <div className="card-head"><h2>Очаквани</h2><span className="small muted">обадили се клиенти</span></div>
+      <div className="table-wrap">
+        <table className="tbl">
+          <thead><tr><th>Идва</th><th>Автомобил</th><th>Клиент</th><th>Оплакване</th><th /></tr></thead>
+          <tbody>
+            {rows.map((e) => (
+              <tr key={e.id}>
+                <td className="small nowrap">{e.date ? `${date(e.date)} ${e.time}` : <span className="muted">без ден</span>}</td>
+                <td><Plate value={e.plate} /><div className="small muted">{e.car}</div></td>
+                <td>{e.client}<div className="small">{e.phone && <a href={`tel:${e.phone}`}>{e.phone}</a>}</div></td>
+                <td>{e.complaint}</td>
+                <td className="right nowrap">
+                  <button type="button" className="btn small" onClick={() => onEdit(e)}>Промени</button>{" "}
+                  <button type="button" className="btn small primary" onClick={() => receiveExpected(e, nav).catch((err) => toast(errorMessage(err), true))}>Приеми</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+/** Write down a call right in the "Очаквани" column. */
+function QuickExpected({ onDone, onCancel }: { onDone: () => void; onCancel: () => void }) {
+  const toast = useToast();
+  const [e, setE] = useState<Expected>(emptyExpected());
+  const [busy, setBusy] = useState(false);
+  const pick = useKnownPick(e);
+  const known = pick.picked ?? pick.exact ?? null;
+  const set = <K extends keyof Expected>(k: K, v: Expected[K]) => {
+    pick.undismiss();
+    setE({ ...e, [k]: v });
+  };
+  async function save(ev: FormEvent) {
+    ev.preventDefault();
+    setBusy(true);
+    try {
+      await api.saveExpected(known ? fillBlanks(e, known) : e);
+      toast("Записан в „Очаквани“");
+      notifyChanged();
+      onDone();
+    } catch (err) {
+      toast(errorMessage(err), true);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <form className="kcard quick-expected" onSubmit={save} onKeyDown={(ev) => ev.key === "Escape" && onCancel()}>
+      {pick.picked ? (
+        <KnownPicked k={pick.picked} onClear={() => { pick.setPicked(null); setE({ ...e, plate: "", car: "", client: "", phone: "" }); }} />
+      ) : (
+        <>
+          <input className="input mono" autoFocus placeholder="Рег. номер" aria-label="Рег. номер" value={e.plate} onChange={(ev) => set("plate", ev.target.value)} />
+          {pick.exact ? (
+            <div className="small known-hit">
+              {pick.exact.car} · {pick.exact.client}{pick.exact.phone && ` · ${pick.exact.phone}`}
+              {pick.exact.inShop && <div style={{ color: "var(--warn)" }}>Колата вече е в сервиза.</div>}
+            </div>
+          ) : (
+            <>
+              <input className="input" placeholder="Клиент" aria-label="Клиент" value={e.client} onChange={(ev) => set("client", ev.target.value)} />
+              <input className="input" type="tel" placeholder="Телефон" aria-label="Телефон" value={e.phone} onChange={(ev) => set("phone", ev.target.value)} />
+            </>
+          )}
+          <KnownSuggestions items={pick.exact ? [] : pick.suggestions} onPick={(k) => { pick.setPicked(k); setE(fillFromKnown(e, k)); }} />
+        </>
+      )}
+      <textarea className="input" rows={2} placeholder="Какво трябва (оплакване)" aria-label="Оплакване" value={e.complaint} onChange={(ev) => set("complaint", ev.target.value)} />
+      <div className="row" style={{ gap: 6, flexWrap: "nowrap" }}>
+        <input className="input" type="date" aria-label="Идва на" value={e.date} onChange={(ev) => set("date", ev.target.value)} style={{ minWidth: 0 }} />
+        <input className="input" type="time" aria-label="Час" value={e.time} onChange={(ev) => set("time", ev.target.value)} style={{ width: 92, flex: "none" }} />
+      </div>
+      <div className="row" style={{ justifyContent: "flex-end", gap: 6 }}>
+        <button type="button" className="btn small" onClick={onCancel}>Отказ</button>
+        <button type="submit" className="btn small primary" disabled={busy}>Запиши</button>
+      </div>
+    </form>
+  );
+}
+
+interface DragWhat {
+  kind: "order" | "expected";
+  id: string;
+  label: string;
+}
+
+/**
+ * Dragging cards between columns with the mouse (or a finger). The
+ * browser's own drag and drop is not used: the window takes file drops
+ * (PDFs onto a work order), which switches it off.
+ */
+function useCardDrag(onDrop: (what: DragWhat, stage: OrderStatus) => void) {
+  const [dragging, setDragging] = useState<DragWhat | null>(null);
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  const [over, setOver] = useState<OrderStatus | "expected" | null>(null);
+  const moved = useRef(false);
+  const dropRef = useRef(onDrop);
+  dropRef.current = onDrop;
+  const cleanup = useRef<() => void>(() => {});
+  useEffect(() => () => cleanup.current(), []);
+
+  function start(e: ReactPointerEvent, what: DragWhat) {
+    if (e.button !== 0) return;
+    // Buttons, links and fields inside a card keep working as usual.
+    if ((e.target as HTMLElement).closest("button, input, textarea, select, a[href^='tel:'], .menu")) return;
+    const sx = e.clientX;
+    const sy = e.clientY;
+    moved.current = false;
+    let active = false;
+    let target: OrderStatus | "expected" | null = null;
+    const move = (ev: PointerEvent) => {
+      if (!active && Math.hypot(ev.clientX - sx, ev.clientY - sy) < 6) return;
+      if (!active) {
+        active = true;
+        moved.current = true;
+        setDragging(what);
+        document.body.classList.add("dragging-card");
+      }
+      ev.preventDefault();
+      setPos({ x: ev.clientX, y: ev.clientY });
+      const col = document.elementFromPoint(ev.clientX, ev.clientY)?.closest<HTMLElement>("[data-stage]");
+      target = (col?.dataset.stage as OrderStatus | undefined) ?? (document.elementFromPoint(ev.clientX, ev.clientY)?.closest(".board-col.expected") ? "expected" : null);
+      setOver(target);
+    };
+    const up = () => {
+      cleanup.current();
+      if (active && target && target !== "expected") dropRef.current(what, target);
+    };
+    const keys = (ev: KeyboardEvent) => {
+      if (ev.key === "Escape") {
+        target = null;
+        up();
+      }
+    };
+    cleanup.current = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+      window.removeEventListener("keydown", keys);
+      document.body.classList.remove("dragging-card");
+      setDragging(null);
+      setPos(null);
+      setOver(null);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
+    window.addEventListener("keydown", keys);
+  }
+
+  /** True right after a drag, so the click that ends it does not open the card. */
+  function wasDrag(): boolean {
+    const m = moved.current;
+    moved.current = false;
+    return m;
+  }
+
+  return { dragging, pos, over, start, wasDrag };
 }

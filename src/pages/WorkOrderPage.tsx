@@ -1,15 +1,16 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { api, StockItem, Car, Client, emptyOrder, errorMessage, FileInfo, isConflict, Shop, Usage, WorkOrder } from "../api";
+import { api, StockItem, Car, Client, emptyOrder, errorMessage, FileInfo, isConflict, notifyChanged, Shop, Usage, WorkOrder } from "../api";
 import { FaultCodes } from "../components/FaultCodes";
 import { useBrand } from "../components/brand";
 import { useFeatures } from "../components/features";
 import { Files } from "../components/Files";
 import { LaborTable, PartsTable, PrintLines } from "../components/Lines";
 import { TimeLogCard } from "../components/TimeLog";
-import { Icon, Loading, Plate, TextField, useToast } from "../components/ui";
+import { Icon, Loading, Menu, Plate, TextField, useNow, useToast } from "../components/ui";
 import { date, euro, int, km, STATUS_LABEL, STATUS_ORDER, todayIso } from "../lib/format";
 import { computeTotals } from "../lib/totals";
+import { formatDuration, nextStep, stageHint, stageOf, stageTimes } from "../lib/stages";
 
 interface Ctx {
   car: Car;
@@ -34,6 +35,8 @@ export function WorkOrderPage() {
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState(false);
   const [tick, setTick] = useState(0);
+  const [editIntake, setEditIntake] = useState(false);
+  const now = useNow();
   const features = useFeatures();
   const [stock, setStock] = useState<StockItem[] | null>(null);
   useEffect(() => {
@@ -63,6 +66,12 @@ export function WorkOrderPage() {
           o.discountPercent = d.owner.discountPercent;
           o.vatPercent = shop.vatRegistered ? shop.vatPercent : 0;
           o.labor = [{ description: "", mechanic: "", hours: 1, rate: shop.laborRate }];
+          // From "Приеми кола" or an expected car.
+          const kmParam = Number((params.get("km") ?? "").replace(/\D/g, ""));
+          if (kmParam) o.mileage = kmParam;
+          o.complaint = params.get("complaint") ?? "";
+          // Received straight into a later stage ("+" on a board column).
+          if (params.get("status")) o.status = stageOf(params.get("status"));
           setOrder(o);
           setCtx({ car: d.car.data, client: d.owner, carKm: d.usage.lastKm, usage: d.usage, files: [], shop });
         }
@@ -81,6 +90,18 @@ export function WorkOrderPage() {
     [order],
   );
 
+  // Ctrl+S saves, as in any Windows program.
+  const saveRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        saveRef.current();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   if (!order || !ctx || !totals) return <Loading error={error} />;
 
   const update = (patch: Partial<WorkOrder>) => {
@@ -88,17 +109,23 @@ export function WorkOrderPage() {
     setDirty(true);
   };
 
-  async function save(): Promise<WorkOrder | null> {
-    if (!order) return null;
+  async function save(data: WorkOrder | null = order): Promise<WorkOrder | null> {
+    if (!data) return null;
     setBusy(true);
     try {
-      const saved = await api.saveOrder({ data: order, notes, baseHash: hash });
+      const saved = await api.saveOrder({ data, notes, baseHash: hash });
       setOrder(saved.data);
       setHash(saved.hash);
       setDir(saved.dir);
       setDirty(false);
       toast(`Запазена ${saved.data.number}`);
-      if (!id) nav(`/orders/${saved.data.id}`, { replace: true });
+      if (!id) {
+        // The expected car has arrived: it leaves the "Очаквани" list.
+        const expected = params.get("expected");
+        if (expected) await api.removeExpected(expected).catch(() => undefined);
+        nav(`/orders/${saved.data.id}`, { replace: true });
+      }
+      notifyChanged();
       return saved.data;
     } catch (e) {
       toast(isConflict(e) ? "Работната карта е променена извън програмата. Презаредете страницата и повторете промените." : errorMessage(e), true);
@@ -108,13 +135,14 @@ export function WorkOrderPage() {
     }
   }
 
-  async function close() {
-    const saved = dirty || !id ? await save() : order;
+  async function close(data: WorkOrder | null = order, force = false) {
+    const saved = force || dirty || !id ? await save(data) : data;
     if (!saved) return;
     setBusy(true);
     try {
       await api.closeOrder(saved.id);
-      toast("Приключена – частите и пробегът са записани в историята на колата");
+      toast(saved.status === "предадена" ? "Предадена и приключена – частите и пробегът са записани в историята на колата" : "Приключена – частите и пробегът са записани в историята на колата");
+      notifyChanged();
       setTick((t) => t + 1);
     } catch (e) {
       toast(errorMessage(e), true);
@@ -137,8 +165,23 @@ export function WorkOrderPage() {
     }
   }
 
-  const statusIdx = STATUS_ORDER.indexOf(order.status);
+  saveRef.current = () => {
+    if (!busy && (dirty || !id)) save();
+  };
+  const stage = stageOf(order.status);
+  const statusIdx = STATUS_ORDER.indexOf(stage);
   const closed = order.historyWritten;
+  const step = nextStep(stage, closed);
+  const intakeOpen = editIntake || !id || stage === "приета";
+
+  // The one main button: move to the next stage (and close when handing over).
+  async function advance() {
+    if (!order || !step) return;
+    const next = { ...order, status: step.to };
+    setOrder(next);
+    if (step.close) await close(next, true);
+    else await save(next);
+  }
 
   return (
     <div className="page">
@@ -154,19 +197,23 @@ export function WorkOrderPage() {
           </div>
         </div>
         <div className="row">
-          {dir && <button className="btn" onClick={() => api.openPath(dir)}><Icon name="folder" />Папка</button>}
-          {features.quotes && id && (
-            <>
-              <Link className="btn" to={`/quotes/new?order=${id}&kind=диагностика`}>Доклад от диагностика</Link>
-              <Link className="btn" to={`/quotes/new?order=${id}&kind=доклад`}>Доклад за ремонта</Link>
-            </>
-          )}
-          <button className="btn" onClick={() => window.print()} disabled={!id}><Icon name="print" />Печат / PDF</button>
-          <button className="btn" onClick={save} disabled={busy || (!dirty && !!id)}>{dirty || !id ? "Запази" : "Запазено"}</button>
-          {!closed && <button className="btn primary" onClick={close} disabled={busy}><Icon name="check" />Приключи</button>}
+          <span className="small muted save-state">
+            <span className={`save-dot ${dirty || !id ? "dirty" : ""}`} />
+            {!id ? "Нова, не е запазена" : dirty ? "Има незапазени промени" : "Запазено"}
+          </span>
+          <Menu
+            items={[
+              !!dir && { label: "Отвори папката", onSelect: () => api.openPath(dir) },
+              features.quotes && !!id && { label: "Доклад от диагностика", onSelect: () => nav(`/quotes/new?order=${id}&kind=диагностика`) },
+              features.quotes && !!id && { label: "Доклад за ремонта", onSelect: () => nav(`/quotes/new?order=${id}&kind=доклад`) },
+              !closed && !!id && { label: "Приключи, без да предаваш колата", onSelect: () => close() },
+            ]}
+          />
+          <button className="btn" onClick={() => window.print()} disabled={!id}><Icon name="print" />Печат</button>
+          {(dirty || !id) && <button className={`btn ${step ? "" : "primary"}`} onClick={() => save()} disabled={busy} title="Ctrl+S">Запази</button>}
+          {step && <button className="btn primary" onClick={advance} disabled={busy}><Icon name="check" />{step.label}</button>}
         </div>
       </div>
-
       <div className="steps no-print" role="group" aria-label="Етап">
         {STATUS_ORDER.map((s, i) => (
           <button key={s} className={i < statusIdx ? "done" : i === statusIdx ? "now" : ""} aria-pressed={i === statusIdx} onClick={() => update({ status: s })}>
@@ -174,9 +221,37 @@ export function WorkOrderPage() {
           </button>
         ))}
       </div>
+      <div className="muted small no-print row" style={{ marginTop: -8, justifyContent: "space-between" }}>
+        <span>{stageHint(stage, closed)}</span>
+        {stageTimes(order, now).length > 0 && (
+          <span className="stage-times" title="Време по етапи, отчетено при всяка смяна на етапа (часовниково време)">
+            {stageTimes(order, now).map((t) => (
+              <span key={t.status} className={t.current ? "now" : ""}>
+                {STATUS_LABEL[t.status]} {t.approx ? "≈ " : ""}{formatDuration(t.minutes)}
+              </span>
+            ))}
+          </span>
+        )}
+      </div>
 
       <div className="cols no-print">
         <div className="wide" style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+          {!intakeOpen ? (
+            <section className="card pad" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div className="row" style={{ justifyContent: "space-between" }}>
+                <h2>Приемане</h2>
+                <button type="button" className="btn small" onClick={() => setEditIntake(true)}>Промени</button>
+              </div>
+              <dl className="facts">
+                <div><dt>Приета</dt><dd className="mono">{date(order.date)}</dd></div>
+                <div><dt>Пробег</dt><dd className="mono">{km(order.mileage)}</dd></div>
+                <div><dt>Гориво</dt><dd>{order.fuelLevel || "—"}</dd></div>
+                <div><dt>Механик</dt><dd>{order.mechanic || "—"}</dd></div>
+              </dl>
+              {kmNote && <div className={`note ${kmNote.bad ? "warn" : "info"}`}>{kmNote.text}</div>}
+              <div><div className="small muted">Оплакване на клиента</div><div style={{ whiteSpace: "pre-wrap" }}>{order.complaint || "—"}</div></div>
+            </section>
+          ) : (
           <section className="card pad" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <h2>Приемане</h2>
             <div className="grid">
@@ -198,6 +273,7 @@ export function WorkOrderPage() {
               <textarea value={order.complaint} onChange={(e) => update({ complaint: e.target.value })} />
             </label>
           </section>
+          )}
 
           <LaborTable title="Извършени дейности (труд)" lines={order.labor} onChange={(labor) => update({ labor })} rate={ctx.shop.laborRate} mechanic={order.mechanic} />
 

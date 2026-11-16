@@ -2,6 +2,7 @@
 #![allow(non_snake_case)]
 
 use crate::backup;
+use crate::calls::{self, Expected};
 use crate::faultcodes::{self, FaultScan};
 use crate::links::{self, Link};
 use crate::schedule::{self, CarSchedule, ManualDone};
@@ -11,7 +12,7 @@ use crate::vin::{self, VinResult};
 use crate::config::AppConfig;
 use crate::model::*;
 use crate::store::{self, FileInfo, Loaded, SaveInput, Store, StoreError};
-use crate::views::{self, CarDetail, CarSummary, ClientDetail, ClientSummary, Dashboard, OrderDetail, OrderSummary};
+use crate::views::{self, CarDetail, CarSummary, ClientDetail, ClientSummary, Dashboard, ExpectedRow, OrderDetail, OrderSummary};
 use crate::usage;
 use serde::Serialize;
 use std::path::{Path, PathBuf};
@@ -185,11 +186,15 @@ pub struct MaintenanceRow {
     pub carId: String,
     pub plate: String,
     pub carName: String,
+    pub clientId: String,
     pub clientName: String,
+    pub clientPhone: String,
     pub operation: String,
     pub status: String,
     pub nextDate: Option<String>,
     pub kmLeft: Option<i64>,
+    /// When the client was called about this item (обаждания.md).
+    pub calledOn: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -202,6 +207,8 @@ pub struct DashboardData {
     pub timers: Vec<TimeRow>,
     /// Stock at or below its minimum (stock on).
     pub lowStock: Vec<StockItem>,
+    /// Clients who called and will bring the car (очаквани.md).
+    pub expected: Vec<ExpectedRow>,
 }
 
 /// One time entry with its work order and car, for the dashboard and the report.
@@ -264,12 +271,21 @@ pub fn dashboard(state: State<AppState>) -> R<DashboardData> {
         for (car, readings) in &scan.cars {
             let cs = car_schedule(&st, &scan, &all, car, readings, &today);
             let Some(cs) = cs else { continue };
-            for i in cs.items.into_iter().filter(|i| i.status == "просрочено" || i.status == "скоро") {
+            let due: Vec<_> = cs.items.into_iter().filter(|i| i.status == "просрочено" || i.status == "скоро").collect();
+            if due.is_empty() {
+                continue;
+            }
+            let made = calls::calls(Path::new(&car.dir));
+            let client = scan.clients.iter().find(|c| c.data.id == car.data.clientId);
+            for i in due {
                 maintenance.push(MaintenanceRow {
                     carId: car.data.id.clone(),
                     plate: car.data.plate.clone(),
                     carName: views::car_name(&car.data),
-                    clientName: scan.clients.iter().find(|c| c.data.id == car.data.clientId).map(|c| c.data.name.clone()).unwrap_or_default(),
+                    clientId: car.data.clientId.clone(),
+                    clientName: client.map(|c| c.data.name.clone()).unwrap_or_default(),
+                    clientPhone: client.map(|c| c.data.phone.clone()).unwrap_or_default(),
+                    calledOn: calls::called_on(&made, &i.operation, i.nextDate.as_deref().unwrap_or("")),
                     operation: i.operation,
                     status: i.status,
                     nextDate: i.nextDate,
@@ -285,7 +301,65 @@ pub fn dashboard(state: State<AppState>) -> R<DashboardData> {
         timers.sort_by(|a, b| a.entry.date.cmp(&b.entry.date).then(a.entry.start.cmp(&b.entry.start)));
     }
     let lowStock = if feature_on(&features(&st), "stock") { Stock::new(st.root()).items().into_iter().filter(|i| i.low()).collect() } else { vec![] };
-    Ok(DashboardData { base, maintenance, timers, lowStock })
+    let expected = views::expected_rows(&scan, calls::expected(st.root()));
+    Ok(DashboardData { base, maintenance, timers, lowStock, expected })
+}
+
+/// Numbers for the menu: cars in the shop, expected, stock to order.
+#[derive(Serialize)]
+pub struct NavCounts {
+    pub inShop: usize,
+    pub ready: usize,
+    pub expected: usize,
+    pub lowStock: usize,
+}
+
+#[tauri::command]
+pub fn nav_counts(state: State<AppState>) -> R<NavCounts> {
+    let st = store(&state)?;
+    let scan = st.scan()?;
+    let today = store::today();
+    let open: Vec<&WorkOrder> = scan.orders.iter().map(|o| &o.data).filter(|o| o.status != STATUS_DELIVERED && !views::is_stale_ready(o, &today)).collect();
+    let shop = features(&st);
+    Ok(NavCounts {
+        inShop: open.len(),
+        ready: open.iter().filter(|o| o.status == "готова").count(),
+        expected: calls::expected(st.root()).len(),
+        lowStock: if feature_on(&shop, "stock") { Stock::new(st.root()).items().iter().filter(|i| i.low()).count() } else { 0 },
+    })
+}
+
+// ---------- calls: expected cars and reminders ----------
+
+#[tauri::command]
+pub fn list_expected(state: State<AppState>) -> R<Vec<ExpectedRow>> {
+    let st = store(&state)?;
+    let scan = st.scan()?;
+    Ok(views::expected_rows(&scan, calls::expected(st.root())))
+}
+
+#[tauri::command]
+pub fn save_expected(state: State<AppState>, row: Expected) -> R<Expected> {
+    let _g = state.write_lock.lock().unwrap();
+    let st = store(&state)?;
+    st.shop()?; // the data folder must exist
+    Ok(calls::save_expected(st.root(), row, &store::today())?)
+}
+
+#[tauri::command]
+pub fn remove_expected(state: State<AppState>, id: String) -> R<()> {
+    let _g = state.write_lock.lock().unwrap();
+    let st = store(&state)?;
+    st.shop()?;
+    Ok(calls::remove_expected(st.root(), &id)?)
+}
+
+#[tauri::command]
+pub fn set_called(state: State<AppState>, carId: String, reason: String, due: String, on: bool) -> R<()> {
+    let _g = state.write_lock.lock().unwrap();
+    let st = store(&state)?;
+    let car = st.car(&carId)?;
+    Ok(calls::set_called(Path::new(&car.dir), &reason, &due, on, &store::today())?)
 }
 
 /// The schedule for one car; None when its last reading is too old.
@@ -446,6 +520,13 @@ pub fn get_order(state: State<AppState>, id: String) -> R<OrderDetail> {
 pub fn save_order(state: State<AppState>, input: SaveInput<WorkOrder>) -> R<Loaded<WorkOrder>> {
     let _g = state.write_lock.lock().unwrap();
     Ok(store(&state)?.save_order(input)?)
+}
+
+/// Move a work order to another stage (the board, the stage buttons).
+#[tauri::command]
+pub fn set_order_status(state: State<AppState>, id: String, status: String) -> R<Loaded<WorkOrder>> {
+    let _g = state.write_lock.lock().unwrap();
+    Ok(store(&state)?.set_order_status(&id, &status)?)
 }
 
 // ---------- time spent (optional) ----------

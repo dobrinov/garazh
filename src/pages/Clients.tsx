@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { api } from "../api";
-import { Icon, Loading, Plate, useLoad } from "../components/ui";
-import { date, euro, matches, toCents } from "../lib/format";
+import { api, CarSummary } from "../api";
+import { DirectoryHead } from "../components/DirectoryHead";
+import { DeadlineBadge, Icon, Loading, Plate, useLoad } from "../components/ui";
+import { date, euro, km, matches, toCents } from "../lib/format";
 
 type Kind = "all" | "частно" | "фирма";
 type Sort = "recent" | "name" | "turnover" | "unpaid";
@@ -10,6 +11,8 @@ type Sort = "recent" | "name" | "turnover" | "unpaid";
 export function Clients() {
   const nav = useNavigate();
   const { data, error } = useLoad(() => api.listClients(), []);
+  const carsLoad = useLoad(() => api.listCars(), []);
+  const carInfo = useMemo(() => new Map<string, CarSummary>((carsLoad.data ?? []).map((c) => [c.car.id, c])), [carsLoad.data]);
   const [q, setQ] = useState("");
   const [kind, setKind] = useState<Kind>("all");
   const [unpaidOnly, setUnpaidOnly] = useState(false);
@@ -42,13 +45,7 @@ export function Clients() {
 
   return (
     <div className="page">
-      <div className="page-head">
-        <div>
-          <h1>Клиенти</h1>
-          <div className="muted">{data.length} клиенти · {data.reduce((s, c) => s + c.cars.length, 0)} автомобила</div>
-        </div>
-        <Link className="btn primary" to="/clients/new"><Icon name="plus" />Нов клиент</Link>
-      </div>
+      <DirectoryHead sub={`${data.length} клиенти · ${data.reduce((s, c) => s + c.cars.length, 0)} автомобила`} />
 
       <section className="card pad stack" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         <div className="row">
@@ -88,16 +85,34 @@ export function Clients() {
         ) : (
           <div className="table-wrap">
             <table className="tbl">
-              <thead><tr><th>Клиент</th><th>Телефон</th><th>Автомобили</th><th>Последно посещение</th><th className="right">Оборот</th><th className="right">Неплатено</th></tr></thead>
+              <thead><tr><th>Клиент</th><th>Автомобили</th><th>Последно посещение</th><th className="right">Оборот</th><th className="right">Неплатено</th></tr></thead>
               <tbody>
                 {rows.map((c) => (
                   <tr key={c.client.id} className="link" onClick={() => nav(`/clients/${c.client.id}`)}>
                     <td>
                       <strong>{c.client.name}</strong>
-                      <div className="small muted">{c.client.kind === "фирма" ? "Фирма" : "Частно лице"} · №{String(c.client.number).padStart(4, "0")}</div>
+                      <div className="small muted">
+                        {c.client.kind === "фирма" ? "Фирма" : "Частно лице"} · №{String(c.client.number).padStart(4, "0")}
+                        {c.client.phone && <> · <a href={`tel:${c.client.phone}`} onClick={(e) => e.stopPropagation()}>{c.client.phone}</a></>}
+                      </div>
                     </td>
-                    <td className="mono small nowrap">{c.client.phone || "—"}</td>
-                    <td><div className="chips">{c.cars.map((k) => <Plate key={k.id} value={k.plate} />)}</div></td>
+                    <td>
+                      <div className="dir-cars">
+                        {c.cars.length === 0 && <span className="muted small">няма коли</span>}
+                        {c.cars.map((k) => {
+                          const info = carInfo.get(k.id);
+                          const soon = info?.deadlines[0] && info.deadlines[0].days <= 30 ? info.deadlines[0] : null;
+                          return (
+                            <Link key={k.id} to={`/cars/${k.id}`} className="dir-car" onClick={(e) => e.stopPropagation()}>
+                              <Plate value={k.plate} />
+                              <strong>{k.make} {k.model}</strong>
+                              {info && <span className="small muted">{km(info.usage.lastKm)}</span>}
+                              {info?.openOrder ? <span className="badge accent">В сервиза</span> : soon ? <DeadlineBadge label={soon.label} days={soon.days} /> : null}
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    </td>
                     <td className="mono small">{date(c.lastVisit)}</td>
                     <td className="mono small right nowrap">{euro(c.turnover)}</td>
                     <td className="mono small right nowrap" style={{ color: toCents(c.unpaid) ? "var(--bad)" : "var(--muted)", fontWeight: 600 }}>

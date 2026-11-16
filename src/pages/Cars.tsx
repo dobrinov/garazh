@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { api, CarSummary } from "../api";
+import { DirectoryHead } from "../components/DirectoryHead";
 import { DeadlineBadge, Icon, Loading, Plate, useLoad } from "../components/ui";
 import { date, int, km, matches } from "../lib/format";
 
@@ -45,15 +46,7 @@ export function Cars() {
 
   return (
     <div className="page">
-      <div className="page-head">
-        <div>
-          <h1>Автомобили</h1>
-          <div className="muted">{data.length} автомобила · {makes.length} марки</div>
-        </div>
-        <Link className="btn primary" to="/clients">
-          <Icon name="plus" />Нов автомобил (през клиента)
-        </Link>
-      </div>
+      <DirectoryHead sub={`${data.length} автомобила · ${makes.length} марки`} />
 
       <section className="card pad" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         <div className="row">
@@ -108,7 +101,7 @@ export function Cars() {
                     <td className="mono small right">{int(c.usage.recentPerMonth)}</td>
                     <td className="small">{c.ownerName}</td>
                     <td>
-                      {c.openOrder ? <span className="badge info">В сервиза</span> : c.deadlines[0] && c.deadlines[0].days <= 60 ? <DeadlineBadge label={c.deadlines[0].label} days={c.deadlines[0].days} /> : <span className="muted small">{c.lastVisit ? `посещение ${date(c.lastVisit)}` : "—"}</span>}
+                      {c.openOrder ? <span className="badge accent">В сервиза</span> : c.deadlines[0] && c.deadlines[0].days <= 60 ? <DeadlineBadge label={c.deadlines[0].label} days={c.deadlines[0].days} /> : <span className="muted small">{c.lastVisit ? `посещение ${date(c.lastVisit)}` : "—"}</span>}
                     </td>
                   </tr>
                 ))}

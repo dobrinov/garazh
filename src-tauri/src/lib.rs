@@ -2,6 +2,7 @@
 #![allow(non_snake_case)]
 
 mod backup;
+pub mod calls;
 mod commands;
 mod config;
 pub mod faultcodes;
@@ -57,6 +58,12 @@ pub fn run() {
             commands::add_parts,
             commands::get_order,
             commands::save_order,
+            commands::set_order_status,
+            commands::nav_counts,
+            commands::list_expected,
+            commands::save_expected,
+            commands::remove_expected,
+            commands::set_called,
             commands::close_order,
             commands::order_time,
             commands::time_start,

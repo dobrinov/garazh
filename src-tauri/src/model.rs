@@ -209,6 +209,16 @@ pub struct PartLine {
 
 pub const STATUS_DELIVERED: &str = "предадена";
 
+/// When a work order entered a stage (0.4+). Files without it are fine:
+/// the time in a stage is then simply not known.
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
+#[serde(rename_all = "camelCase", default)]
+pub struct StageMark {
+    pub status: String,
+    /// "ГГГГ-ММ-ДД ЧЧ:ММ", or only the day for the intake of an older order.
+    pub at: String,
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
 #[serde(rename_all = "camelCase", default)]
 pub struct WorkOrder {
@@ -235,6 +245,9 @@ pub struct WorkOrder {
     /// Parts picked from stock have been taken off the shelf (once, on closing).
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub stockTaken: bool,
+    /// Stage changes with their time, written by the program (0.4+).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub stages: Vec<StageMark>,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
 }
@@ -263,6 +276,32 @@ pub fn totals(labor: &[LaborLine], parts: &[PartLine], discount_percent: u32, va
 impl WorkOrder {
     pub fn totals(&self) -> Totals {
         totals(&self.labor, &self.parts, self.discountPercent, self.vatPercent)
+    }
+
+    /// The stage as the program uses it; none written counts as "приета".
+    pub fn stage(&self) -> &str {
+        let s = self.status.trim();
+        if s.is_empty() { "приета" } else { s }
+    }
+
+    /// Note the time of a stage change. `before` is the order as it is on
+    /// disk (None for a new one); its marks are kept, never the UI's.
+    pub fn record_stage(&mut self, before: Option<&WorkOrder>, now: &str) {
+        self.stages = before.map(|b| b.stages.clone()).unwrap_or_default();
+        let from = before.map(|b| b.stage().to_string());
+        if from.as_deref() == Some(self.stage()) {
+            return;
+        }
+        if self.stages.is_empty() {
+            if let Some(b) = before {
+                // An order from before 0.4: only the intake day is known.
+                if b.stage() == "приета" && !b.date.is_empty() {
+                    self.stages.push(StageMark { status: "приета".into(), at: b.date.clone() });
+                }
+            }
+        }
+        let status = self.stage().to_string();
+        self.stages.push(StageMark { status, at: now.to_string() });
     }
 }
 

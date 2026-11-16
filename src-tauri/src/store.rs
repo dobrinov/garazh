@@ -27,6 +27,8 @@ const LOGO_MAX_BYTES: u64 = 5_000_000;
 const LOGO_TYPES: &[(&str, &str)] =
     &[("png", "image/png"), ("jpg", "image/jpeg"), ("jpeg", "image/jpeg"), ("svg", "image/svg+xml"), ("webp", "image/webp")];
 
+/// Work order stages, in order. Files from any version use these words.
+pub const ORDER_STATUSES: [&str; 6] = ["приета", "диагностика", "чака_части", "в_ремонт", "готова", "предадена"];
 const MILEAGE_HEADER: [&str; 3] = ["Дата", "Км", "Източник"];
 const PARTS_HEADER: [&str; 7] = ["Дата", "Км", "Част", "Марка / кат. №", "К-во", "Цена", "РК"];
 
@@ -548,7 +550,9 @@ impl Store {
         if data.status.is_empty() {
             data.status = "приета".into();
         }
+        let now = chrono::Local::now().format("%Y-%m-%d %H:%M").to_string();
         let dir = if data.id.is_empty() {
+            data.record_stage(None, &now);
             data.id = new_id("r");
             let n = self.next_counter(|c| &mut c.workOrder)?;
             data.number = format!("РК-{}-{:04}", &data.date[..4.min(data.date.len())], n);
@@ -572,6 +576,7 @@ impl Store {
             // Keep what only the app may set.
             data.number = current.data.number.clone();
             data.historyWritten = current.data.historyWritten;
+            data.record_stage(Some(&current.data), &now);
             let want = unique_dir(&orders_dir, &names::order_folder(&data.date, &data.number, &data.title), Some(&cur_dir));
             if want != cur_dir {
                 fs::rename(&cur_dir, &want)?;
@@ -579,6 +584,26 @@ impl Store {
             want
         };
         self.write_record(&dir.join(ORDER_FILE), &data, &input.notes, None)?;
+        self.reload(&dir, ORDER_FILE)
+    }
+
+    /// Change only the stage of a work order. Only the status line of the
+    /// file changes; everything else, including fields written by other
+    /// versions or by hand, is kept.
+    pub fn set_order_status(&self, id: &str, status: &str) -> Result<Loaded<WorkOrder>> {
+        if !ORDER_STATUSES.contains(&status) {
+            return Err(StoreError::Invalid(format!("Непознат етап: {status}")));
+        }
+        let scan = self.scan()?;
+        let mut order = self.find_order(&scan, id)?;
+        if order.data.status == status {
+            return Ok(order);
+        }
+        let before = order.data.clone();
+        order.data.status = status.to_string();
+        order.data.record_stage(Some(&before), &chrono::Local::now().format("%Y-%m-%d %H:%M").to_string());
+        let dir = PathBuf::from(&order.dir);
+        self.write_record(&dir.join(ORDER_FILE), &order.data, &order.notes, Some(&order.hash))?;
         self.reload(&dir, ORDER_FILE)
     }
 
@@ -620,7 +645,9 @@ impl Store {
         }
         order.data.closedOn = Some(closed_on);
         if order.data.status != STATUS_DELIVERED {
+            let before = order.data.clone();
             order.data.status = "готова".into();
+            order.data.record_stage(Some(&before), &chrono::Local::now().format("%Y-%m-%d %H:%M").to_string());
         }
         let dir = PathBuf::from(&order.dir);
         self.write_record(&dir.join(ORDER_FILE), &order.data, &order.notes, None)?;
@@ -924,10 +951,12 @@ Notepad и Excel и да копирате документи директно в
     документи\\     талон, ГТП и други документи\r\n\
     оферти-и-доклади\\  оферти, доклади за ремонт и диагностика\r\n\
     график-поддръжка.md  обслужвания, отбелязани ръчно\r\n\
+    обаждания.md   обаждания до клиента за срокове и обслужване\r\n\
 справочници\\графици\\   графици за поддръжка по двигател и кутия (редактируеми)\r\n\
 справочници\\марки\\     полезни връзки по марка (редактируеми)\r\n\
 справочници\\vin-отговори\\  запазени отговори от онлайн проверка на VIN\r\n\
 сервиз.md                                  данни за сервиза и броячи\r\n\
+очаквани.md                                коли, за които клиентът се е обадил\r\n\
 .index\\                                    временни файлове, може да се изтрие\r\n\
 \r\n\
 Не променяйте реда между --- в началото на файловете, освен ако не сте сигурни.\r\n";
@@ -1199,5 +1228,127 @@ mod tests {
         assert_eq!(shop.data.logo, "");
         assert!(!s.root.join("лого.svg").exists());
         assert_eq!(s.logo_data_url().unwrap(), None);
+    }
+
+    /// A data folder as versions 0.2–0.3 left it: no очаквани.md or
+    /// обаждания.md, files saved from Notepad (BOM, CRLF), folders made by
+    /// hand without ids, a work order closed the old way (готова) and one
+    /// with no stage at all. Everything new must read it and add to it
+    /// without changing what was there.
+    #[test]
+    fn folders_from_older_versions_work_with_calls_and_stages() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("Стари данни");
+        let w = |rel: &str, text: &str| {
+            let p = root.join(rel);
+            fs::create_dir_all(p.parent().unwrap()).unwrap();
+            fs::write(p, format!("\u{feff}{}", text.replace('\n', "\r\n"))).unwrap();
+        };
+        w(SHOP_FILE, "---\nсхема: 1\nиме: Сервиз\nброячи:\n  клиент: 1\n  работна_карта: 2\n---\n");
+        w("клиенти/0001 Иван/клиент.md", "---\nиме: Иван Петров\nтелефон: 0888 123 456\n---\n");
+        let car = "клиенти/0001 Иван/СА4821КН Golf";
+        w(&format!("{car}/автомобил.md"), "---\nрег_номер: СА 4821 КН\nмарка: Volkswagen\nмодел: Golf\nгтп_до: 2026-11-28\n---\n");
+        w(&format!("{car}/пробег.md"), "| Дата | Км | Източник |\n|---|---|---|\n| 2026-03-14 | 176900 | ръчно |\n");
+        w(
+            &format!("{car}/ремонти/2026-03-14 РК-2026-0001/работна-карта.md"),
+            "---\nномер: РК-2026-0001\nдата: 2026-03-14\nстатус: готова\nприключена: 2026-03-14\nзаписана_в_историята: true\nмоя_бележка: пази се\n---\n",
+        );
+        w(&format!("{car}/ремонти/2026-11-16 РК-2026-0002/работна-карта.md"), "---\nномер: РК-2026-0002\nдата: 2026-11-16\n---\n");
+        let s = Store::new(&root);
+
+        let scan = s.scan().unwrap();
+        assert!(scan.problems.is_empty(), "{:?}", scan.problems);
+        assert_eq!(scan.orders.len(), 2);
+        let car_id = scan.cars[0].0.data.id.clone();
+        assert!(car_id.starts_with("k-"), "hand-made car folder gets a derived id");
+
+        // Nothing expected, nobody called: the dashboard reads the old folder as is.
+        assert!(crate::calls::expected(&root).is_empty());
+        let dash = crate::views::dashboard(&scan, "2026-11-16");
+        assert_eq!(dash.deadlines.len(), 1);
+        assert_eq!(dash.deadlines[0].calledOn, None);
+        assert_eq!(dash.deadlines[0].clientPhone, "0888 123 456");
+        assert_eq!(dash.inShop.len(), 2, "an order closed the old way still waits for pickup");
+
+        // A call is recorded next to the car; the scan does not mind the new file.
+        let car_dir = PathBuf::from(&scan.cars[0].0.dir);
+        crate::calls::set_called(&car_dir, "ГТП", "2026-11-28", true, "2026-11-16").unwrap();
+        let scan = s.scan().unwrap();
+        assert!(scan.problems.is_empty());
+        let dash = crate::views::dashboard(&scan, "2026-11-16");
+        assert_eq!(dash.deadlines[0].calledOn.as_deref(), Some("2026-11-16"));
+
+        // An expected car matches the existing car by plate, written in Latin.
+        crate::calls::save_expected(&root, crate::calls::Expected { plate: "ca4821kh".into(), complaint: "Тракане".into(), ..Default::default() }, "2026-11-16").unwrap();
+        let rows = crate::views::expected_rows(&scan, crate::calls::expected(&root));
+        assert_eq!(rows[0].carId.as_deref(), Some(car_id.as_str()));
+        assert!(rows[0].openOrder.is_some(), "the car is already in the shop");
+
+        // Moving the stage of an order without a stage and without an id keeps the rest of the file.
+        let old = scan.orders.iter().find(|o| o.data.number == "РК-2026-0001").unwrap().clone();
+        let moved = s.set_order_status(&old.data.id, "предадена").unwrap();
+        assert_eq!(moved.data.status, "предадена");
+        assert_eq!(moved.data.extra.get("моя_бележка").and_then(|v| v.as_str()), Some("пази се"));
+        assert_eq!(moved.data.closedOn.as_deref(), Some("2026-03-14"));
+        let fresh = s.scan().unwrap();
+        let no_stage = fresh.orders.iter().find(|o| o.data.number == "РК-2026-0002").unwrap();
+        assert_eq!(no_stage.data.status, "", "an order without a stage is shown as приета, never rewritten on read");
+        s.set_order_status(&no_stage.data.id, "в_ремонт").unwrap();
+        assert!(s.set_order_status(&no_stage.data.id, "измислен").is_err());
+        let after = s.scan().unwrap();
+        assert_eq!(after.orders.len(), 2);
+        assert_eq!(after.orders.iter().find(|o| o.data.number == "РК-2026-0002").unwrap().data.id, no_stage.data.id, "ids stay stable");
+        assert_eq!(read_readings(&car_dir).len(), 1, "history files are not touched");
+    }
+
+    #[test]
+    fn stage_times_are_recorded_and_survive_older_versions() {
+        let (_t, s) = store();
+        let c = new_client(&s, "Иван");
+        let car = new_car(&s, &c.data.id, "СА 1");
+        let o = s.save_order(SaveInput { data: WorkOrder { carId: car.data.id.clone(), status: "в_ремонт".into(), ..Default::default() }, ..Default::default() }).unwrap();
+        assert_eq!(o.data.stages.len(), 1, "a new order notes its first stage");
+        assert_eq!(o.data.stages[0].status, "в_ремонт");
+        // The UI cannot rewrite the marks; a save without a change adds none.
+        let mut edit = o.data.clone();
+        edit.stages.clear();
+        edit.title = "Ново заглавие".into();
+        let o = s.save_order(SaveInput { data: edit, notes: String::new(), baseHash: Some(o.hash.clone()) }).unwrap();
+        assert_eq!(o.data.stages.len(), 1);
+        let o = s.set_order_status(&o.data.id, "готова").unwrap();
+        assert_eq!(o.data.stages.iter().map(|m| m.status.as_str()).collect::<Vec<_>>(), vec!["в_ремонт", "готова"]);
+        let file = Path::new(&o.dir).join(ORDER_FILE);
+        let text = read_text(&file).unwrap();
+        assert!(text.contains("етапи:") && text.contains("от: "), "{text}");
+
+        // A version before 0.4 knows nothing of "етапи": it keeps them as an unknown field.
+        #[derive(Serialize, serde::Deserialize, Default)]
+        #[serde(rename_all = "camelCase", default)]
+        struct Old {
+            status: String,
+            #[serde(flatten)]
+            extra: serde_json::Map<String, serde_json::Value>,
+        }
+        let (mut old, notes): (Old, String) = crate::md::parse_record(&text).unwrap();
+        old.status = "предадена".into();
+        write_atomic(&file, &crate::md::render_record(&old, &notes).unwrap()).unwrap();
+        let back = s.order(&o.data.id).unwrap();
+        assert_eq!(back.data.stages.len(), 2, "marks survive a save by an older version");
+        assert_eq!(back.data.status, "предадена");
+    }
+
+    #[test]
+    fn an_order_from_before_stage_times_gets_its_intake_day() {
+        let mut before = WorkOrder { date: "2026-11-02".into(), ..Default::default() };
+        let mut now = before.clone();
+        now.status = "диагностика".into();
+        now.record_stage(Some(&before), "2026-11-16 10:00");
+        assert_eq!(now.stages, vec![StageMark { status: "приета".into(), at: "2026-11-02".into() }, StageMark { status: "диагностика".into(), at: "2026-11-16 10:00".into() }]);
+        // Already in a later stage: when it got there is not known, so nothing is made up.
+        before.status = "в_ремонт".into();
+        let mut later = before.clone();
+        later.status = "готова".into();
+        later.record_stage(Some(&before), "2026-11-16 10:00");
+        assert_eq!(later.stages.len(), 1);
     }
 }

@@ -48,6 +48,23 @@ Version 1.0 adds:
   `{КОД_ДВИГАТЕЛ}` and other placeholders filled from the car
 - **Fault codes** read from the text layer of diagnostic PDFs (P/B/C/U + 4)
 
+Version 0.4 reorganises the screens around the shop's day:
+
+- **Днес** (replaces the dashboard): cars in the shop by stage, things that
+  need attention, and one reminder list (deadlines and maintenance) with
+  "Обадих се", stored per car in `обаждания.md`
+- **Ctrl K search and "Приеми кола"**: find a car by plate, VIN, phone or
+  name and open a work order with mileage, complaint and an accepted quote
+- **Work order board** by stage with drag and drop and an **Очаквани**
+  column for cars announced by phone (`очаквани.md` in the data folder);
+  ready cars stay on the board for a month
+- **Car history** on one timeline; **Клиенти и коли** as one directory;
+  **Отчети** for turnover and time
+
+Folders from earlier versions open unchanged: the two new files are
+optional and are only written when a call is recorded. Work orders with
+no stage (made by hand or by early versions) count as "приета".
+
 Automatic updates: see below. Not done yet from the plan's version 1.0: a
 Windows code-signing certificate for the installer.
 
@@ -56,6 +73,7 @@ Windows code-signing certificate for the installer.
 ```
 <data folder>\
   сервиз.md                          shop details and number counters
+  очаквани.md                        cars announced by phone (0.4, optional)
   ПРОЧЕТИ.txt                        explains the layout in Bulgarian
   клиенти\
     0001 Иван Петров\
@@ -66,6 +84,7 @@ Windows code-signing certificate for the installer.
         части.md                     parts and consumables fitted (table)
         документи\                   uploaded files, as uploaded
         график-поддръжка.md          maintenance done elsewhere (table)
+        обаждания.md                 reminder calls made (0.4, optional)
         оферти-и-доклади\
           2026-11-10 ОФ-2026-0001 Съединител\
             документ.md

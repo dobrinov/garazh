@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { api, QuoteSummary } from "../api";
 import { Icon, Loading, Plate, useLoad } from "../components/ui";
 import { date, euro, matches } from "../lib/format";
@@ -14,7 +14,8 @@ export const QUOTE_STATUS: Record<string, { label: string; tone: string }> = {
 
 type Filter = "all" | "оферта" | "reports" | "open";
 
-export function Quotes() {
+/** The quotes and reports list, shown as a tab of the work orders. */
+export function QuotesPanel() {
   const { data, error } = useLoad(() => api.listQuotes(), []);
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
@@ -29,14 +30,7 @@ export function Quotes() {
   }, [data, q, filter]);
   if (!data) return <Loading error={error} />;
   return (
-    <div className="page">
-      <div className="page-head">
-        <div>
-          <h1>Оферти и доклади</h1>
-          <div className="muted">{data.length} общо · нова оферта или доклад се прави от страницата на автомобила или от работната карта</div>
-        </div>
-        <Link className="btn primary" to="/cars"><Icon name="plus" />Нова оферта</Link>
-      </div>
+    <>
       <section className="card pad" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         <label className="search">
           <Icon name="search" color="var(--muted)" />
@@ -46,12 +40,13 @@ export function Quotes() {
           {([["all", "Всички"], ["open", "Чакащи отговор"], ["оферта", "Оферти"], ["reports", "Доклади"]] as [Filter, string][]).map(([f, l]) => (
             <button key={f} className={`chip ${filter === f ? "on" : ""}`} aria-pressed={filter === f} onClick={() => setFilter(f)}>{l}</button>
           ))}
+          <span className="small muted" style={{ marginLeft: "auto" }}>Нова оферта или доклад: от страницата на колата или от работната карта.</span>
         </div>
       </section>
       <section className="card">
         <QuoteList rows={rows} showCar empty={data.length === 0 ? "Още няма оферти и доклади." : "Няма съвпадения."} />
       </section>
-    </div>
+    </>
   );
 }
 

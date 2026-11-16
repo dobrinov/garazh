@@ -15,7 +15,24 @@ export function CarEdit() {
   const [params] = useSearchParams();
   const nav = useNavigate();
   const toast = useToast();
-  const [car, setCar] = useState<Car | null>(id ? null : emptyCar(params.get("client") ?? ""));
+  const expectedId = id ? null : params.get("expected");
+  const [car, setCar] = useState<Car | null>(id ? null : { ...emptyCar(params.get("client") ?? ""), plate: (params.get("plate") ?? "").toUpperCase() });
+  const [complaint, setComplaint] = useState("");
+  useEffect(() => {
+    if (!expectedId) return;
+    api
+      .listExpected()
+      .then((rows) => {
+        const e = rows.find((r) => r.id === expectedId);
+        if (!e) return;
+        setComplaint(e.complaint);
+        // "VW Touran" → make and model, when the make is a known one.
+        const [first, ...rest] = e.car.trim().split(/\s+/);
+        const make = MAKES.find((m) => m.toLowerCase() === (first ?? "").toLowerCase() || (first?.toUpperCase() === "VW" && m === "Volkswagen"));
+        setCar((c) => (c ? { ...c, plate: c.plate || e.plate.toUpperCase(), make: c.make || (make ?? ""), model: c.model || (make ? rest.join(" ") : e.car) } : c));
+      })
+      .catch(() => undefined);
+  }, [expectedId]);
   const [notes, setNotes] = useState("");
   const [hash, setHash] = useState<string | null>(null);
   const [clients, setClients] = useState<ClientSummary[]>([]);
@@ -105,7 +122,15 @@ export function CarEdit() {
     try {
       const saved = await api.saveCar({ data: car, notes, baseHash: hash });
       toast("Автомобилът е запазен");
-      nav(`/cars/${saved.data.id}`, { replace: true });
+      if (expectedId || params.get("intake")) {
+        const next = new URLSearchParams({ car: saved.data.id });
+        if (expectedId) next.set("expected", expectedId);
+        if (complaint) next.set("complaint", complaint);
+        if (params.get("status")) next.set("status", params.get("status")!);
+        nav(`/orders/new?${next}`, { replace: true });
+      } else {
+        nav(`/cars/${saved.data.id}`, { replace: true });
+      }
     } catch (err) {
       toast(isConflict(err) ? "Файлът на колата е променен извън програмата. Отворете я отново." : errorMessage(err), true);
     } finally {
@@ -122,10 +147,11 @@ export function CarEdit() {
       <div className="page-head">
         <div>
           <div className="crumbs">
-            <Link to="/cars">Автомобили</Link><span>/</span><span>{id ? car.plate || "Автомобил" : "Нов автомобил"}</span>
+            <Link to="/cars">Клиенти и коли</Link><span>/</span><span>{id ? car.plate || "Автомобил" : "Нов автомобил"}</span>
           </div>
           <h1>{id ? "Редактиране на автомобил" : "Нов автомобил"}</h1>
           {owner && <div className="muted">Собственик: {owner.client.name}</div>}
+          {(expectedId || params.get("intake")) && <div className="muted">Приемане на кола: 1. клиент ✓ → 2. кола → 3. работна карта</div>}
         </div>
         <div className="row">
           <button type="button" className="btn" onClick={() => nav(-1)}>Отказ</button>

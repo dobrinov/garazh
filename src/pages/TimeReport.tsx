@@ -17,7 +17,7 @@ function thisMonth(): string {
 }
 
 /** Finished time for a month, by mechanic and by car. */
-export function TimeReport() {
+export function TimeReport({ embedded }: { embedded?: boolean } = {}) {
   const [month, setMonth] = useState(thisMonth());
   const [from, to] = monthRange(month);
   const { data, error } = useLoad(() => api.timeReport(from, to), [from, to]);
@@ -29,10 +29,10 @@ export function TimeReport() {
   const total = sum(data ?? []);
 
   return (
-    <div className="page">
+    <div className={embedded ? "stack-18" : "page"}>
       <div className="page-head">
         <div>
-          <h1>Отработено време</h1>
+          {!embedded && <h1>Отработено време</h1>}
           <div className="muted">По механици и по коли, само спрените таймери и ръчно добавеното време.</div>
         </div>
         <label className="field" style={{ width: 180 }}>

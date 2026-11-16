@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { HashRouter, Route, Routes } from "react-router-dom";
+import { HashRouter, Navigate, Route, Routes } from "react-router-dom";
 import { api, AppConfig, errorMessage } from "./api";
 import { Layout } from "./components/Layout";
 import { BrandProvider } from "./components/brand";
@@ -15,11 +15,10 @@ import { Clients } from "./pages/Clients";
 import { Dashboard } from "./pages/Dashboard";
 import { Orders } from "./pages/Orders";
 import { QuotePage } from "./pages/QuotePage";
-import { Quotes } from "./pages/Quotes";
+import { Reports } from "./pages/Reports";
 import { Settings } from "./pages/Settings";
 import { Setup } from "./pages/Setup";
 import { Stock } from "./pages/Stock";
-import { TimeReport } from "./pages/TimeReport";
 import { WorkOrderPage } from "./pages/WorkOrderPage";
 
 export function App() {
@@ -66,15 +65,18 @@ export function App() {
               <Route path="orders" element={<Orders />} />
               <Route path="orders/new" element={<WorkOrderPage />} />
               <Route path="orders/:id" element={<WorkOrderPage />} />
-              <Route path="quotes" element={<Quotes />} />
+              {/* Older links: the lists moved into Работни карти and Отчети. */}
+              <Route path="quotes" element={<Navigate to="/orders?tab=quotes" replace />} />
               <Route path="quotes/new" element={<QuotePage />} />
               <Route path="quotes/:id" element={<QuotePage />} />
-              <Route path="time" element={<TimeReport />} />
+              <Route path="time" element={<Navigate to="/reports?tab=time" replace />} />
+              <Route path="reports" element={<Reports />} />
               <Route path="stock" element={<Stock />} />
               <Route
                 path="settings"
                 element={<Settings config={config} onConfig={setConfig} onFeatures={setFeatures} />}
               />
+              <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
           </Routes>
         </HashRouter>

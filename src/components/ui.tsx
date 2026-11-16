@@ -1,6 +1,7 @@
 import { createContext, ReactNode, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { errorMessage } from "../api";
 import { daysLabel, STATUS_LABEL, statusTone } from "../lib/format";
+import { stageOf } from "../lib/stages";
 
 // ---------- icons (inline stroke SVG, no icon font needed offline) ----------
 
@@ -25,6 +26,12 @@ const PATHS: Record<string, string> = {
   calendar: "M4 6h16v14H4zM4 10h16M8 3v4M16 3v4",
   clock: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2",
   box: "M21 8l-9-5-9 5v8l9 5 9-5zM3 8l9 5 9-5M12 13v8",
+  down: "M6 9l6 6 6-6",
+  home: "M4 11l8-7 8 7v9a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z",
+  chart: "M4 20V10M10 20V4M16 20v-7M22 20H2",
+  phone: "M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z",
+  board: "M4 4h4v16H4zM10 4h4v10h-4zM16 4h4v13h-4z",
+  list: "M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01",
   scan: "M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3M7 12h10",
 };
 
@@ -109,7 +116,9 @@ export function Plate({ value, big }: { value: string; big?: boolean }) {
 }
 
 export function StatusBadge({ status }: { status: string }) {
-  return <span className={`badge ${statusTone(status)}`}>{STATUS_LABEL[status] ?? status}</span>;
+  // Files without a stage (hand-made, early versions) read as "Приета".
+  const s = stageOf(status);
+  return <span className={`badge ${statusTone(s)}`}>{STATUS_LABEL[s]}</span>;
 }
 
 export function DeadlineBadge({ label, days }: { label: string; days: number }) {
@@ -159,4 +168,86 @@ export function TextField({
       {hint && <span className="hint">{hint}</span>}
     </label>
   );
+}
+
+// ---------- menu and dialog ----------
+
+export interface MenuItem {
+  label: string;
+  onSelect: () => void;
+  disabled?: boolean;
+  danger?: boolean;
+}
+
+/** A button that opens a short list of less frequent actions ("Още"). */
+export function Menu({ label = "Още", items, small }: { label?: string; items: (MenuItem | false | null | undefined)[]; small?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent | KeyboardEvent) => {
+      if (e instanceof KeyboardEvent ? e.key === "Escape" : !ref.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", close);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("keydown", close);
+    };
+  }, [open]);
+  const list = items.filter(Boolean) as MenuItem[];
+  if (list.length === 0) return null;
+  return (
+    <div className="menu" ref={ref}>
+      <button type="button" className={`btn ${small ? "small menu-small" : ""}`} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>
+        {label}
+        <Icon name="down" size={14} width={2.4} />
+      </button>
+      {open && (
+        <div className="menu-list" role="menu">
+          {list.map((m) => (
+            <button
+              key={m.label}
+              type="button"
+              role="menuitem"
+              className={m.danger ? "danger" : undefined}
+              disabled={m.disabled}
+              onClick={() => {
+                setOpen(false);
+                m.onSelect();
+              }}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** A modal dialog over the page. Escape and a click outside close it. */
+export function Dialog({ title, onClose, children, wide }: { title: string; onClose: () => void; children: ReactNode; wide?: boolean }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return (
+    <div className="dialog-back no-print" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className={`dialog ${wide ? "wide" : ""}`} role="dialog" aria-modal="true" aria-label={title}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/** The current time, updated every `ms` (for "in this stage for …"). */
+export function useNow(ms = 60000): Date {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const t = window.setInterval(() => setNow(new Date()), ms);
+    return () => window.clearInterval(t);
+  }, [ms]);
+  return now;
 }

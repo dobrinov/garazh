@@ -7,28 +7,40 @@ import { LinksCard } from "../components/Links";
 import { RealOemPartLinks } from "../components/RealOem";
 import { QuoteList } from "./Quotes";
 import { ScheduleTab } from "../components/Schedule";
-import { DeadlineBadge, Icon, Loading, Plate, StatusBadge, useLoad, useToast } from "../components/ui";
-import { date, euro, int, km, todayIso } from "../lib/format";
+import { DeadlineBadge, Icon, Loading, Menu, Plate, StatusBadge, useLoad, useToast } from "../components/ui";
+import { date, euro, int, km, STATUS_LABEL, todayIso } from "../lib/format";
+import { buildHistory, HistoryEntry, HistoryKind } from "../lib/history";
+import { stageOf } from "../lib/stages";
 import { formatMinutes } from "../lib/time";
 
-type Tab = "usage" | "orders" | "parts" | "docs" | "schedule" | "quotes";
+type Tab = "all" | "orders" | "parts" | "usage" | "schedule" | "quotes" | "docs";
 type CarDetail = CarData;
+
+const KIND_LABEL: Record<HistoryKind, string> = { order: "Ремонт", parts: "Части", km: "Пробег", quote: "Оферта / доклад", doc: "Документ" };
+const QUOTE_TONE: Record<string, string> = { чернова: "muted", изпратена: "info", приета: "ok", отказана: "bad" };
+const QUOTE_LABEL: Record<string, string> = { чернова: "Чернова", изпратена: "Чака отговор", приета: "Приета", отказана: "Отказана" };
 
 export function CarPage() {
   const { id = "" } = useParams();
+  const nav = useNavigate();
   const { data, error, reload } = useLoad(() => api.getCar(id), [id]);
-  const [tab, setTab] = useState<Tab>("orders");
+  const [tab, setTab] = useState<Tab>("all");
   const features = useFeatures();
   const toast = useToast();
+  const history = useMemo(
+    () => (data ? buildHistory({ orders: data.orders, parts: data.parts, readings: data.readings, quotes: features.quotes ? data.quotes : [], documents: data.documents }) : []),
+    [data, features.quotes],
+  );
   if (!data) return <Loading error={error} />;
-  const due = data.schedule?.items.filter((i) => i.status === "просрочено" || i.status === "скоро").length ?? 0;
-  const tabs: [Tab, string][] = [
-    ["orders", `Ремонти (${data.orders.length})`],
-    ...(data.schedule ? [["schedule", `Поддръжка${due ? ` (${due})` : ""}`] as [Tab, string]] : []),
-    ["parts", `Части и консумативи (${data.parts.length})`],
-    ["usage", "Пробег и натоварване"],
-    ...(features.quotes ? [["quotes", `Оферти и доклади (${data.quotes.length})`] as [Tab, string]] : []),
-    ["docs", `Документи (${data.documents.length})`],
+  const dueItems = data.schedule?.items.filter((i) => i.status === "просрочено" || i.status === "скоро") ?? [];
+  const tabs: [Tab, string, number | null][] = [
+    ["all", "Всичко", null],
+    ["orders", "Ремонти", data.orders.length],
+    ["parts", "Части", data.parts.length],
+    ["usage", "Пробег", data.readings.length],
+    ...(data.schedule ? [["schedule", "Поддръжка", dueItems.length || null] as [Tab, string, number | null]] : []),
+    ...(features.quotes ? [["quotes", "Оферти и доклади", data.quotes.length] as [Tab, string, number | null]] : []),
+    ["docs", "Документи", data.documents.length],
   ];
   const copy = async (text: string, what: string) => {
     try {
@@ -39,102 +51,193 @@ export function CarPage() {
     }
   };
   const c = data.car.data;
+  const open = data.orders.find((o) => stageOf(o.order.status) !== "предадена");
 
   return (
     <div className="page">
       <div className="page-head">
         <div>
           <div className="crumbs">
-            <Link to="/clients">Клиенти</Link><span>/</span><Link to={`/clients/${c.clientId}`}>{data.owner.name}</Link><span>/</span><span>{c.plate}</span>
+            <Link to="/clients">Клиенти и коли</Link><span>/</span><Link to={`/clients/${c.clientId}`}>{data.owner.name}</Link><span>/</span><span>{c.plate}</span>
           </div>
           <div className="row" style={{ gap: 14 }}>
             <Plate value={c.plate} big />
             <div>
               <h1>{c.make} {c.model}</h1>
-              <div className="muted">{[c.year, c.fuel, c.color].filter(Boolean).join(" · ")}</div>
-              {data.time && (data.time.totalMinutes > 0 || data.time.running.length > 0) && (
-                <div className="small" style={{ marginTop: 4 }}>
-                  <Icon name="clock" size={14} /> Отработено: <strong className="mono">{formatMinutes(data.time.totalMinutes)}</strong> ч
-                  {data.time.running.length > 0 && <span className="muted"> · таймерът тече</span>}
-                </div>
-              )}
+              <div className="muted">
+                {[c.year, [c.engine, c.engineCode].filter(Boolean).join(" "), [c.gearbox, c.gearboxCode].filter(Boolean).join(" ")].filter(Boolean).join(" · ")}
+                {" · "}<Link to={`/clients/${c.clientId}`}>{data.owner.name}</Link>
+                {data.owner.phone && <> · <a href={`tel:${data.owner.phone}`}>{data.owner.phone}</a></>}
+              </div>
             </div>
           </div>
         </div>
         <div className="row">
-          <button className="btn" onClick={() => api.openPath(data.car.dir)}><Icon name="folder" />Отвори папката</button>
-          <Link className="btn" to={`/cars/${id}/edit`}>Редактирай</Link>
+          <Menu
+            items={[
+              { label: "Редактирай колата", onSelect: () => nav(`/cars/${id}/edit`) },
+              { label: "Отвори папката", onSelect: () => api.openPath(data.car.dir) },
+              features.quotes && { label: "Доклад от диагностика", onSelect: () => nav(`/quotes/new?car=${id}&kind=диагностика`) },
+            ]}
+          />
           {features.quotes && <Link className="btn" to={`/quotes/new?car=${id}&kind=оферта`}><Icon name="quote" />Оферта</Link>}
-          <Link className="btn primary" to={`/orders/new?car=${id}`}><Icon name="plus" />Нова работна карта</Link>
+          {open ? (
+            <Link className="btn primary" to={`/orders/${open.order.id}`}>Отвори работната карта</Link>
+          ) : (
+            <Link className="btn primary" to={`/orders/new?car=${id}`}><Icon name="plus" />Нова работна карта</Link>
+          )}
         </div>
       </div>
 
+      {open && (
+        <Link to={`/orders/${open.order.id}`} className="in-shop-banner">
+          <span className="badge" style={{ background: "var(--accent)", color: "#fff" }}>В сервиза</span>
+          <strong>{open.order.number} · {open.order.title || open.order.complaint || "Работна карта"}</strong>
+          <span>{STATUS_LABEL[stageOf(open.order.status)]}{open.order.mechanic && ` · ${open.order.mechanic}`}{data.time?.running.includes(open.order.id) && " · таймерът тече"}</span>
+          <span className="grow" />
+          <span style={{ fontWeight: 600 }}>Отвори картата →</span>
+        </Link>
+      )}
+      {data.car.notes.trim() && <div className="note warn" style={{ whiteSpace: "pre-wrap" }}>{data.car.notes.trim()}</div>}
+
       <div className="cols">
-        <section className="card pad wide" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <dl className="facts">
-            <div>
-              <dt>VIN</dt>
-              <dd className="mono row" style={{ gap: 6 }}>
-                {c.vin || "—"}
-                {c.vin && <button className="btn small icon-btn" onClick={() => copy(c.vin, "VIN")} aria-label="Копирай VIN" title="Копирай VIN"><Icon name="copy" size={14} /></button>}
-              </dd>
+        <div className="wide stack-14">
+          <div className="row" style={{ justifyContent: "space-between" }}>
+            <h2>История</h2>
+            <div className="chips" role="tablist" aria-label="Покажи">
+              {tabs.map(([t, label, n]) => (
+                <button key={t} role="tab" aria-selected={tab === t} className={`chip ${tab === t ? "on" : ""}`} onClick={() => setTab(t)}>
+                  {label}{n !== null && <span className="chip-n">{n}</span>}
+                </button>
+              ))}
             </div>
-            <div><dt>Двигател</dt><dd>{[c.engine, c.engineCode].filter(Boolean).join(" · ") || "—"}</dd></div>
-            <div><dt>Скоростна кутия</dt><dd>{[c.gearbox, c.gearboxCode].filter(Boolean).join(" · ") || "—"}</dd></div>
-            <div><dt>Текущ пробег</dt><dd><span className="mono">{km(data.usage.lastKm)}</span> <span className="muted small">{date(data.usage.lastDate)}</span></dd></div>
-            <div><dt>Натоварване</dt><dd>{data.usage.recentPerMonth ? `≈ ${int(data.usage.recentPerMonth)} км / месец` : "—"}</dd></div>
-            <div><dt>Код боя · гуми</dt><dd>{[c.paintCode, c.tyres].filter(Boolean).join(" · ") || "—"}</dd></div>
-          </dl>
-          {data.car.notes.trim() && <div className="note warn" style={{ whiteSpace: "pre-wrap" }}>{data.car.notes.trim()}</div>}
-        </section>
-        <aside className="narrow" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <div className="card pad">
-            <div className="small muted">Собственик</div>
-            <Link to={`/clients/${c.clientId}`} style={{ fontWeight: 700, fontSize: 16, color: "var(--ink)", textDecoration: "none" }}>{data.owner.name}</Link>
-            <div>{data.owner.phone}</div>
-            {c.pastOwners.length > 0 && <div className="small muted" style={{ marginTop: 6 }}>Предишни: {c.pastOwners.join(", ")}</div>}
           </div>
-          <div className="card pad" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <div className="small muted">Срокове</div>
-            {data.deadlines.length === 0 ? <span className="muted">Не са въведени</span> : data.deadlines.map((d) => (
-              <div key={d.kind} className="row" style={{ justifyContent: "space-between" }}>
+          {tab === "all" && <Timeline entries={history} carId={id} />}
+          {tab === "orders" && <OrdersTab data={data} />}
+          {tab === "parts" && <PartsTab data={data} onChange={reload} />}
+          {tab === "schedule" && data.schedule && <ScheduleTab data={data} schedule={data.schedule} onChange={reload} />}
+          {tab === "quotes" && (
+            <section className="card">
+              <div className="card-head">
+                <h2>Оферти и доклади</h2>
+                <div className="row">
+                  <Link className="btn small" to={`/quotes/new?car=${id}&kind=диагностика`}>+ Доклад от диагностика</Link>
+                  <Link className="btn small primary" to={`/quotes/new?car=${id}&kind=оферта`}>+ Оферта</Link>
+                </div>
+              </div>
+              <QuoteList rows={data.quotes} showCar={false} />
+            </section>
+          )}
+          {tab === "usage" && <UsageTab data={data} onChange={reload} />}
+          {tab === "docs" && (
+            <section className="card pad">
+              <Files files={data.documents} target="car" id={id} onChange={reload} hint="Файловете се записват в папка „документи“ на колата. Тук се показват и файловете от ремонтите." />
+            </section>
+          )}
+        </div>
+
+        <aside className="narrow stack-14">
+          {data.schedule && (
+            <section className="card pad stack-8">
+              <div className="row" style={{ justifyContent: "space-between" }}>
+                <h3>Поддръжка</h3>
+                <button type="button" className="link-btn small" onClick={() => setTab("schedule")}>Целият график</button>
+              </div>
+              {dueItems.length === 0 ? (
+                <span className="muted small">Нищо не предстои скоро.</span>
+              ) : (
+                dueItems.slice(0, 5).map((i) => (
+                  <div key={i.schedule + i.operation} className="kv">
+                    <span>{i.operation}</span>
+                    <span className={`badge ${i.status === "просрочено" ? "bad" : "warn"}`}>
+                      {i.kmLeft !== null ? (i.kmLeft < 0 ? `с ${int(-i.kmLeft)} км над` : `след ${int(i.kmLeft)} км`) : i.status === "просрочено" ? "просрочено" : date(i.nextDate)}
+                    </span>
+                  </div>
+                ))
+              )}
+            </section>
+          )}
+          <section className="card pad stack-8">
+            <h3>Срокове</h3>
+            {data.deadlines.length === 0 ? <span className="muted small">Не са въведени. <Link to={`/cars/${id}/edit`}>Добави</Link></span> : data.deadlines.map((d) => (
+              <div key={d.kind} className="kv">
                 <span>{d.label} <span className="mono small muted">{date(d.date)}</span></span>
                 <DeadlineBadge label="" days={d.days} />
               </div>
             ))}
-          </div>
+          </section>
+          <section className="card pad stack-8">
+            <div className="row" style={{ justifyContent: "space-between" }}>
+              <h3>Пробег</h3>
+              <strong className="mono">{km(data.usage.lastKm)}</strong>
+            </div>
+            <span className="small muted">
+              {data.usage.recentPerMonth ? `≈ ${int(data.usage.recentPerMonth)} км/месец` : "Нужни са поне две отчитания."}
+              {data.usage.lastDate && ` · последно ${date(data.usage.lastDate)}`}
+            </span>
+            <button type="button" className="btn small" onClick={() => setTab("usage")}>Запиши показание</button>
+          </section>
+          <section className="card pad stack-8">
+            <h3>Данни</h3>
+            <div className="kv"><span className="muted">VIN</span>
+              <span className="mono small row" style={{ gap: 4 }}>
+                {c.vin || "—"}
+                {c.vin && <button className="btn small icon-btn" onClick={() => copy(c.vin, "VIN")} aria-label="Копирай VIN" title="Копирай VIN"><Icon name="copy" size={14} /></button>}
+              </span>
+            </div>
+            {(c.paintCode || c.tyres) && <div className="kv"><span className="muted">Код боя · гуми</span><span>{[c.paintCode, c.tyres].filter(Boolean).join(" · ")}</span></div>}
+            {(c.fuel || c.color) && <div className="kv"><span className="muted">Гориво · цвят</span><span>{[c.fuel, c.color].filter(Boolean).join(" · ")}</span></div>}
+            {data.time && data.time.totalMinutes > 0 && <div className="kv"><span className="muted">Отработено</span><span className="mono">{formatMinutes(data.time.totalMinutes)} ч</span></div>}
+            {c.pastOwners.length > 0 && <div className="kv"><span className="muted">Предишни собственици</span><span>{c.pastOwners.join(", ")}</span></div>}
+          </section>
           {features.links && <LinksCard links={data.links} car={c} onCopy={copy} />}
         </aside>
       </div>
+    </div>
+  );
+}
 
-      <div className="tabs" role="tablist">
-        {tabs.map(([t, label]) => (
-          <button key={t} role="tab" aria-selected={tab === t} className={tab === t ? "on" : ""} onClick={() => setTab(t)}>{label}</button>
-        ))}
-      </div>
-
-      {tab === "orders" && <OrdersTab data={data} />}
-      {tab === "parts" && <PartsTab data={data} onChange={reload} />}
-      {tab === "schedule" && data.schedule && <ScheduleTab data={data} schedule={data.schedule} onChange={reload} />}
-      {tab === "quotes" && (
-        <section className="card">
-          <div className="card-head">
-            <h2>Оферти и доклади</h2>
-            <div className="row">
-              <Link className="btn small" to={`/quotes/new?car=${id}&kind=диагностика`}>+ Доклад от диагностика</Link>
-              <Link className="btn small primary" to={`/quotes/new?car=${id}&kind=оферта`}>+ Оферта</Link>
+function Timeline({ entries, carId }: { entries: HistoryEntry[]; carId: string }) {
+  const [all, setAll] = useState(false);
+  if (entries.length === 0) {
+    return <div className="card empty">Още няма история. <Link to={`/orders/new?car=${carId}`}>Нова работна карта</Link></div>;
+  }
+  const shown = all ? entries : entries.slice(0, 12);
+  return (
+    <section className="card timeline">
+      {shown.map((e) => {
+        const title = e.kind === "order" ? <Link to={`/orders/${e.id}`}>{e.title}</Link> : e.kind === "quote" ? <Link to={`/quotes/${e.id}`}>{e.title}</Link> : e.kind === "doc" ? <button type="button" className="link-btn" onClick={() => api.openPath(e.path)}>{e.title}</button> : e.title;
+        return (
+          <div key={e.key} className={`tl-row tl-${e.kind}`}>
+            <div className="tl-when">
+              <div className="mono small" style={{ fontWeight: 600 }}>{date(e.date)}</div>
+              {e.km !== null && <div className="mono small muted">{km(e.km)}</div>}
+            </div>
+            <div className="tl-dot" aria-hidden="true" />
+            <div className="tl-body">
+              <div className="row" style={{ justifyContent: "space-between", alignItems: "flex-start" }}>
+                <div className="grow">
+                  <div className="tl-kind">{KIND_LABEL[e.kind]} {e.number && <span className="mono">{e.number}</span>}</div>
+                  <div className="tl-title">{title}</div>
+                </div>
+                <div className="row" style={{ gap: 8 }}>
+                  {e.total && <span className="mono small" style={{ fontWeight: 600 }}>{euro(e.total)}</span>}
+                  {e.kind === "order" && <StatusBadge status={stageOf(e.status)} />}
+                  {e.kind === "quote" && e.status && <span className={`badge ${QUOTE_TONE[e.status] ?? "muted"}`}>{QUOTE_LABEL[e.status] ?? e.status}</span>}
+                </div>
+              </div>
+              {e.sub && <div className="small muted">{e.sub}</div>}
+              {e.parts.length > 0 && <div className="tl-parts">{e.parts.map((p, i) => <span key={i}>{p}</span>)}</div>}
             </div>
           </div>
-          <QuoteList rows={data.quotes} showCar={false} />
-        </section>
+        );
+      })}
+      {entries.length > 12 && (
+        <div className="card-foot">
+          <button type="button" className="link-btn" onClick={() => setAll(!all)}>{all ? "Покажи по-малко" : `Покажи по-старите (${entries.length - 12})`}</button>
+        </div>
       )}
-      {tab === "usage" && <UsageTab data={data} onChange={reload} />}
-      {tab === "docs" && (
-        <section className="card pad">
-          <Files files={data.documents} target="car" id={id} onChange={reload} hint="Файловете се записват в папка „документи“ на колата. Тук се показват и файловете от ремонтите." />
-        </section>
-      )}
-    </div>
+    </section>
   );
 }
 

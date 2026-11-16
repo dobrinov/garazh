@@ -2,6 +2,7 @@
 #![allow(non_snake_case)]
 
 use crate::model::*;
+use crate::calls::{self, Expected};
 use crate::store::{FileInfo, Loaded, Problem, Scan};
 use crate::usage::{self, Usage};
 use chrono::NaiveDate;
@@ -56,6 +57,7 @@ pub struct OrderSummary {
     pub plate: String,
     pub carName: String,
     pub clientName: String,
+    pub clientPhone: String,
 }
 
 #[derive(Serialize, Clone, Debug)]
@@ -101,7 +103,22 @@ pub struct DeadlineRow {
     pub carName: String,
     pub clientId: String,
     pub clientName: String,
+    pub clientPhone: String,
     pub deadline: Deadline,
+    /// When the client was called about this deadline (обаждания.md).
+    pub calledOn: Option<String>,
+}
+
+/// A car announced by phone, with the car and client it matches by plate.
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct ExpectedRow {
+    #[serde(flatten)]
+    pub expected: Expected,
+    pub carId: Option<String>,
+    pub clientId: Option<String>,
+    /// The car is already in the shop on this work order.
+    pub openOrder: Option<String>,
 }
 
 #[derive(Serialize, Clone, Debug)]
@@ -157,6 +174,20 @@ pub fn all_readings(scan: &Scan, car_id: &str, base: &[Reading]) -> Vec<Reading>
     rs
 }
 
+/// A ready car stays "in the shop" for a month after its last date
+/// (closed on, else received on). Older ones were most likely collected
+/// without the stage being moved on – common for work orders closed in
+/// earlier versions. Same rule as isStaleReady in src/lib/stages.ts.
+pub fn is_stale_ready(o: &WorkOrder, today: &str) -> bool {
+    if o.status.trim() != "готова" {
+        return false;
+    }
+    let last = std::cmp::max(o.date.as_str(), o.closedOn.as_deref().unwrap_or(""));
+    let Ok(t) = NaiveDate::parse_from_str(today, "%Y-%m-%d") else { return false };
+    let cutoff = t.checked_sub_months(chrono::Months::new(1)).unwrap_or(t).format("%Y-%m-%d").to_string();
+    !last.is_empty() && last < cutoff.as_str()
+}
+
 fn is_open(o: &WorkOrder) -> bool {
     o.status != STATUS_DELIVERED
 }
@@ -174,6 +205,7 @@ pub fn order_summary(scan: &Scan, o: &WorkOrder) -> OrderSummary {
         plate: car.map(|c| c.plate.clone()).unwrap_or_default(),
         carName: car.map(car_name).unwrap_or_default(),
         clientName: client.map(|c| c.name.clone()).unwrap_or_default(),
+        clientPhone: client.map(|c| c.phone.clone()).unwrap_or_default(),
     }
 }
 
@@ -229,14 +261,18 @@ pub fn dashboard(scan: &Scan, today: &str) -> Dashboard {
     let mut rows = Vec::new();
     for (car, _) in &scan.cars {
         let client = scan.clients.iter().find(|c| c.data.id == car.data.clientId);
-        for d in deadlines(&car.data, today) {
-            if d.days <= 30 {
+        let soon: Vec<Deadline> = deadlines(&car.data, today).into_iter().filter(|d| d.days <= 30).collect();
+        let made = if soon.is_empty() { vec![] } else { calls::calls(std::path::Path::new(&car.dir)) };
+        for d in soon {
+            {
                 rows.push(DeadlineRow {
                     carId: car.data.id.clone(),
                     plate: car.data.plate.clone(),
                     carName: car_name(&car.data),
                     clientId: car.data.clientId.clone(),
                     clientName: client.map(|c| c.data.name.clone()).unwrap_or_default(),
+                    clientPhone: client.map(|c| c.data.phone.clone()).unwrap_or_default(),
+                    calledOn: calls::called_on(&made, &d.label, &d.date),
                     deadline: d,
                 });
             }
@@ -258,6 +294,23 @@ pub fn dashboard(scan: &Scan, today: &str) -> Dashboard {
         unpaid: Money(scan.orders.iter().filter(|o| counts_as_turnover(&o.data) && !o.data.paid).map(|o| o.data.totals().total.0).sum()),
         problems: scan.problems.clone(),
     }
+}
+
+/// Expected cars matched to the car (and its open work order) by plate.
+pub fn expected_rows(scan: &Scan, rows: Vec<Expected>) -> Vec<ExpectedRow> {
+    rows.into_iter()
+        .map(|e| {
+            let key = calls::plate_key(&e.plate);
+            let car = (!key.is_empty()).then(|| scan.cars.iter().find(|c| calls::plate_key(&c.0.data.plate) == key)).flatten();
+            let open = car.and_then(|c| scan.orders.iter().find(|o| o.data.carId == c.0.data.id && is_open(&o.data))).map(|o| o.data.id.clone());
+            ExpectedRow {
+                carId: car.map(|c| c.0.data.id.clone()),
+                clientId: car.map(|c| c.0.data.clientId.clone()),
+                openOrder: open,
+                expected: e,
+            }
+        })
+        .collect()
 }
 
 pub fn client_detail(scan: &Scan, id: &str, today: &str) -> Option<ClientDetail> {
@@ -294,7 +347,10 @@ pub fn car_detail(scan: &Scan, id: &str, parts: Vec<PartRow>, documents: Vec<Fil
 pub fn order_detail(scan: &Scan, id: &str, files: Vec<FileInfo>) -> Option<OrderDetail> {
     let o = scan.orders.iter().find(|o| o.data.id == id)?.clone();
     let (car, base) = scan.cars.iter().find(|c| c.0.data.id == o.data.carId)?;
-    let rs = all_readings(scan, &car.data.id, base);
+    // The mileage check compares this order with the car's history before it,
+    // so its own reading (from the order, or written to пробег.md on closing) is left out.
+    let mut rs = all_readings(scan, &car.data.id, base);
+    rs.retain(|r| r.source != o.data.number);
     let u = usage::compute(&rs);
     Some(OrderDetail {
         totals: o.data.totals(),
@@ -310,6 +366,16 @@ pub fn order_detail(scan: &Scan, id: &str, files: Vec<FileInfo>) -> Option<Order
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ready_cards_stay_for_a_month() {
+        let o = |date: &str, closed: Option<&str>| WorkOrder { status: "готова".into(), date: date.into(), closedOn: closed.map(Into::into), ..Default::default() };
+        assert!(!is_stale_ready(&o("2026-10-16", None), "2026-11-16"));
+        assert!(is_stale_ready(&o("2026-03-14", Some("2026-03-14")), "2026-11-16"));
+        assert!(!is_stale_ready(&o("2026-09-01", Some("2026-11-10")), "2026-11-16"));
+        assert!(is_stale_ready(&o("2026-02-27", None), "2026-03-31"), "31 March − 1 month = 28 February");
+        assert!(!is_stale_ready(&WorkOrder { status: "в_ремонт".into(), date: "2020-01-01".into(), ..Default::default() }, "2026-11-16"));
+    }
 
     #[test]
     fn deadlines_are_sorted_and_counted_in_days() {

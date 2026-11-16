@@ -139,6 +139,8 @@ export interface WorkOrder {
   payment: string;
   paid: boolean;
   closedOn: string | null;
+  /** Stage changes with their time (0.4+); missing in older files. */
+  stages?: { status: string; at: string }[];
   historyWritten: boolean;
   [extra: string]: unknown;
 }
@@ -234,6 +236,7 @@ export interface OrderSummary {
   plate: string;
   carName: string;
   clientName: string;
+  clientPhone: string;
 }
 
 export interface ClientDetail {
@@ -418,7 +421,10 @@ export interface Dashboard {
     carName: string;
     clientId: string;
     clientName: string;
+    clientPhone: string;
     deadline: Deadline;
+    /** When the client was called about it (обаждания.md); null = not yet. */
+    calledOn: string | null;
   }[];
   clients: number;
   cars: number;
@@ -429,16 +435,51 @@ export interface Dashboard {
     carId: string;
     plate: string;
     carName: string;
+    clientId: string;
     clientName: string;
+    clientPhone: string;
     operation: string;
     status: DueStatus;
     nextDate: string | null;
     kmLeft: number | null;
+    calledOn: string | null;
   }[];
   /** Timers running now (time tracking on). */
   timers: TimeRow[];
   /** Stock at or below its minimum (stock on). */
   lowStock: StockItem[];
+  /** Clients who called and will bring the car (очаквани.md). */
+  expected: ExpectedRow[];
+}
+
+/** A car announced by phone (a row of очаквани.md). */
+export interface Expected {
+  id: string;
+  calledOn: string;
+  /** ГГГГ-ММ-ДД or "" when no day was agreed. */
+  date: string;
+  /** ЧЧ:ММ or "". */
+  time: string;
+  plate: string;
+  car: string;
+  client: string;
+  phone: string;
+  complaint: string;
+}
+
+export interface ExpectedRow extends Expected {
+  /** The known car with this plate, if any. */
+  carId: string | null;
+  clientId: string | null;
+  /** The car is already in the shop on this work order. */
+  openOrder: string | null;
+}
+
+export interface NavCounts {
+  inShop: number;
+  ready: number;
+  expected: number;
+  lowStock: number;
 }
 
 export interface TimeRow extends TimeEntry {
@@ -509,6 +550,13 @@ export const api = {
   stockRemove: (code: string) => invoke<StockItem[]>("stock_remove", { code }),
   saveOrder: (input: SaveInput<WorkOrder>) => invoke<Loaded<WorkOrder>>("save_order", { input }),
   closeOrder: (id: string) => invoke<Loaded<WorkOrder>>("close_order", { id }),
+  setOrderStatus: (id: string, status: OrderStatus) => invoke<Loaded<WorkOrder>>("set_order_status", { id, status }),
+
+  navCounts: () => invoke<NavCounts>("nav_counts"),
+  listExpected: () => invoke<ExpectedRow[]>("list_expected"),
+  saveExpected: (row: Expected) => invoke<Expected>("save_expected", { row }),
+  removeExpected: (id: string) => invoke<void>("remove_expected", { id }),
+  setCalled: (carId: string, reason: string, due: string, on: boolean) => invoke<void>("set_called", { carId, reason, due, on }),
 
   attachFiles: (target: "car" | "order" | "quote", id: string, paths: string[]) =>
     invoke<FileInfo[]>("attach_files", { target, id, paths }),
@@ -621,4 +669,13 @@ export function emptyOrder(carId: string): WorkOrder {
     closedOn: null,
     historyWritten: false,
   };
+}
+
+export function emptyExpected(): Expected {
+  return { id: "", calledOn: "", date: "", time: "", plate: "", car: "", client: "", phone: "", complaint: "" };
+}
+
+/** Tell the menu (counts) and open lists that data changed. */
+export function notifyChanged() {
+  window.dispatchEvent(new Event("garazh:changed"));
 }
