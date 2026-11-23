@@ -359,6 +359,7 @@ tr:first-child .meter > div { background: var(--accent); }
 .tl-dot::before { content: ""; position: absolute; left: 10px; top: 0; bottom: 0; width: 2px; background: var(--line); }
 .tl-dot::after { content: ""; position: absolute; left: 5px; top: 15px; width: 8px; height: 8px; border-radius: 50%; background: #9aa3b5; border: 2px solid #fff; box-shadow: 0 0 0 1px #9aa3b5; }
 .tl-order .tl-dot::after { background: var(--ink); box-shadow: 0 0 0 1px var(--ink); }
+.tl-event .tl-dot::after { background: var(--warn); box-shadow: 0 0 0 1px var(--warn); }
 .tl-quote .tl-dot::after { background: var(--info); box-shadow: 0 0 0 1px var(--info); }
 .tl-body { padding: 10px 0 14px; border-bottom: 1px solid var(--line-2); min-width: 0; }
 .tl-row:last-child .tl-body { border-bottom: 0; }

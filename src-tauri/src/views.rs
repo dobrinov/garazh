@@ -3,6 +3,7 @@
 
 use crate::model::*;
 use crate::calls::{self, Expected};
+use crate::events::CarEvent;
 use crate::store::{FileInfo, Loaded, Problem, Scan};
 use crate::usage::{self, Usage};
 use chrono::NaiveDate;
@@ -78,6 +79,7 @@ pub struct CarDetail {
     pub readings: Vec<Reading>,
     pub usage: Usage,
     pub parts: Vec<PartRow>,
+    pub events: Vec<CarEvent>,
     pub orders: Vec<OrderSummary>,
     pub documents: Vec<FileInfo>,
     pub deadlines: Vec<Deadline>,
@@ -327,7 +329,7 @@ pub fn client_detail(scan: &Scan, id: &str, today: &str) -> Option<ClientDetail>
     })
 }
 
-pub fn car_detail(scan: &Scan, id: &str, parts: Vec<PartRow>, documents: Vec<FileInfo>, today: &str) -> Option<CarDetail> {
+pub fn car_detail(scan: &Scan, id: &str, parts: Vec<PartRow>, events: Vec<CarEvent>, documents: Vec<FileInfo>, today: &str) -> Option<CarDetail> {
     let (car, base) = scan.cars.iter().find(|c| c.0.data.id == id)?;
     let readings = all_readings(scan, id, base);
     let mut orders: Vec<OrderSummary> = scan.orders.iter().filter(|o| o.data.carId == id).map(|o| order_summary(scan, &o.data)).collect();
@@ -337,6 +339,7 @@ pub fn car_detail(scan: &Scan, id: &str, parts: Vec<PartRow>, documents: Vec<Fil
         usage: usage::compute(&readings),
         readings,
         parts,
+        events,
         orders,
         documents,
         deadlines: deadlines(&car.data, today),

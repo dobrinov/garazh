@@ -6,6 +6,7 @@ pub mod calls;
 pub mod jobs;
 mod commands;
 mod config;
+pub mod events;
 pub mod faultcodes;
 pub mod links;
 pub mod schedule;
@@ -82,6 +83,8 @@ pub fn run() {
             commands::open_url,
             commands::decode_vin,
             commands::mark_done,
+            commands::save_event,
+            commands::remove_event,
             commands::install_reference,
             commands::reference_dir,
             commands::list_jobs,

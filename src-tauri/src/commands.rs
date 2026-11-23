@@ -3,6 +3,7 @@
 
 use crate::backup;
 use crate::calls::{self, Expected};
+use crate::events::{self, CarEvent};
 use crate::faultcodes::{self, FaultScan};
 use crate::links::{self, Link};
 use crate::schedule::{self, CarSchedule, ManualDone};
@@ -387,8 +388,9 @@ fn full_schedule(st: &Store, scan: &store::Scan, all: &[schedule::Schedule], car
     let dir = PathBuf::from(&car.dir);
     let parts = st.parts(&dir);
     let manual = schedule::read_manual(&dir);
+    let events = events::read(&dir);
     let orders: Vec<&WorkOrder> = scan.orders.iter().filter(|o| o.data.carId == car.data.id).map(|o| &o.data).collect();
-    let h = schedule::CarHistory { car: &car.data, pinned: &car.data.schedules, parts: &parts, orders, manual: &manual, usage: u };
+    let h = schedule::CarHistory { car: &car.data, pinned: &car.data.schedules, parts: &parts, orders, manual: &manual, events: &events, usage: u };
     schedule::for_car(all, &h, today)
 }
 
@@ -484,7 +486,7 @@ fn car_detail(st: &Store, scan: &store::Scan, id: &str) -> R<CarDetail> {
         docs.extend(st.list_files(Path::new(&o.dir)));
     }
     docs.sort_by(|a, b| b.modified.cmp(&a.modified));
-    views::car_detail(scan, id, st.parts(&dir), docs, &store::today()).ok_or_else(|| not_found(id))
+    views::car_detail(scan, id, st.parts(&dir), events::read(&dir), docs, &store::today()).ok_or_else(|| not_found(id))
 }
 
 #[tauri::command]
@@ -690,6 +692,43 @@ pub fn mark_done(state: State<AppState>, carId: String, row: ManualDone) -> R<()
     let car = st.car(&carId)?;
     schedule::add_manual(Path::new(&car.dir), row)?;
     Ok(())
+}
+
+// ---------- past events ----------
+
+#[tauri::command]
+pub fn save_event(state: State<AppState>, carId: String, event: CarEvent, original: Option<CarEvent>) -> R<()> {
+    let _g = state.write_lock.lock().unwrap();
+    let Ok(d) = chrono::NaiveDate::parse_from_str(&event.date, "%Y-%m-%d") else {
+        return Err(StoreError::Invalid("Датата трябва да е във формат ГГГГ-ММ-ДД".into()).into());
+    };
+    if d.format("%Y-%m-%d").to_string() > store::today() {
+        return Err(StoreError::Invalid("Датата е в бъдещето – тук се записват само минали събития".into()).into());
+    }
+    if event.what.trim().is_empty() {
+        return Err(StoreError::Invalid("Напишете какво е станало".into()).into());
+    }
+    let st = store(&state)?;
+    let car = st.car(&carId)?;
+    if !events::save(Path::new(&car.dir), event, original.as_ref())? {
+        return Err(changed_meanwhile());
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn remove_event(state: State<AppState>, carId: String, event: CarEvent) -> R<()> {
+    let _g = state.write_lock.lock().unwrap();
+    let st = store(&state)?;
+    let car = st.car(&carId)?;
+    if !events::remove(Path::new(&car.dir), &event)? {
+        return Err(changed_meanwhile());
+    }
+    Ok(())
+}
+
+fn changed_meanwhile() -> ApiError {
+    StoreError::Invalid("Събитието не е намерено – „събития.md“ е променен междувременно. Опреснете страницата.".into()).into()
 }
 
 /// Put the shipped schedules and links into the data folder. Existing files

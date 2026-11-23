@@ -1,9 +1,12 @@
 // One dated history for a car, built from what is already in its folder:
-// work orders, части.md, пробег.md, quotes and documents. Nothing is
+// work orders, части.md, пробег.md, събития.md, quotes and documents. Nothing is
 // stored for it, so folders from every version show their full history.
-import type { FileInfo, OrderSummary, PartRow, QuoteSummary, Reading } from "../api";
+import type { CarEvent, FileInfo, OrderSummary, PartRow, QuoteSummary, Reading } from "../api";
 
-export type HistoryKind = "order" | "parts" | "km" | "quote" | "doc";
+export type HistoryKind = "order" | "event" | "parts" | "km" | "quote" | "doc";
+
+/** `source` of the readings that come from събития.md (see events.rs). */
+export const EVENT_SOURCE = "събитие";
 
 export interface HistoryEntry {
   key: string;
@@ -21,6 +24,8 @@ export interface HistoryEntry {
   /** Parts fitted on this visit (from части.md). */
   parts: string[];
   path: string;
+  /** The row of събития.md, for a past event. */
+  event?: CarEvent;
 }
 
 function partText(p: PartRow): string {
@@ -35,6 +40,7 @@ function isCarDocument(f: FileInfo): boolean {
 export function buildHistory(input: {
   orders: OrderSummary[];
   parts: PartRow[];
+  events?: CarEvent[];
   readings: Reading[];
   quotes: QuoteSummary[];
   documents: FileInfo[];
@@ -85,9 +91,27 @@ export function buildHistory(input: {
     });
   }
 
-  // Readings that a work order did not bring in (those are already on the order).
+  input.events?.forEach((ev, i) => {
+    out.push({
+      key: `e-${i}-${ev.date}`,
+      kind: "event",
+      date: ev.date,
+      km: ev.km,
+      number: "",
+      title: ev.what,
+      sub: [ev.place, ev.note].filter((x) => x.trim()).join(" · "),
+      total: ev.amount.trim() || null,
+      status: "",
+      id: "",
+      parts: [],
+      path: "",
+      event: ev,
+    });
+  });
+
+  // Readings that a work order or event did not bring in (those are already on it).
   for (const r of input.readings) {
-    if (numbers.has(r.source)) continue;
+    if (numbers.has(r.source) || r.source === EVENT_SOURCE) continue;
     out.push({
       key: `k-${r.date}-${r.km}`,
       kind: "km",
@@ -139,6 +163,6 @@ export function buildHistory(input: {
   }
 
   // Newest first; on the same day a work order before what came with it.
-  const rank: Record<HistoryKind, number> = { order: 0, quote: 1, parts: 2, km: 3, doc: 4 };
+  const rank: Record<HistoryKind, number> = { order: 0, event: 1, quote: 2, parts: 3, km: 4, doc: 5 };
   return out.sort((a, b) => b.date.localeCompare(a.date) || rank[a.kind] - rank[b.kind]);
 }

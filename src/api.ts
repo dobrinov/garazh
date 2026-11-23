@@ -192,6 +192,16 @@ export interface PartRow {
   order: string;
 }
 
+/** A past event on a car (a row of its събития.md): a repair elsewhere, an accident… */
+export interface CarEvent {
+  date: string;
+  km: number | null;
+  what: string;
+  place: string;
+  amount: string;
+  note: string;
+}
+
 export interface Period {
   from: string;
   to: string;
@@ -275,6 +285,7 @@ export interface CarDetail {
   readings: Reading[];
   usage: Usage;
   parts: PartRow[];
+  events: CarEvent[];
   orders: OrderSummary[];
   documents: FileInfo[];
   deadlines: Deadline[];
@@ -557,6 +568,8 @@ export const api = {
   saveCar: (input: SaveInput<Car>) => invoke<Loaded<Car>>("save_car", { input }),
   addReading: (carId: string, reading: Reading) => invoke<void>("add_reading", { carId, reading }),
   addParts: (carId: string, rows: PartRow[]) => invoke<void>("add_parts", { carId, rows }),
+  saveEvent: (carId: string, event: CarEvent, original: CarEvent | null) => invoke<void>("save_event", { carId, event, original }),
+  removeEvent: (carId: string, event: CarEvent) => invoke<void>("remove_event", { carId, event }),
 
   getOrder: (id: string) => invoke<OrderDetail>("get_order", { id }),
   orderTime: (id: string) => invoke<TimeLog>("order_time", { id }),

@@ -37,4 +37,17 @@ describe("buildHistory", () => {
     expect(h.some((e) => e.title === "Акумулатор" && e.sub === "РК-2023-0009")).toBe(true);
     expect(h.filter((e) => e.kind === "km")).toHaveLength(1);
   });
+
+  it("shows past events once, with their mileage on the event and not as a reading", () => {
+    const h = buildHistory({
+      orders: [],
+      parts: [],
+      events: [{ date: "2024-05-02", km: 150000, what: "Смяна на ангренаж", place: "друг сервиз", amount: "640", note: "" }],
+      readings: [{ date: "2024-05-02", km: 150000, source: "събитие" }],
+      quotes: [],
+      documents: [],
+    });
+    expect(h).toHaveLength(1);
+    expect(h[0]).toMatchObject({ kind: "event", title: "Смяна на ангренаж", sub: "друг сервиз", km: 150000, total: "640" });
+  });
 });

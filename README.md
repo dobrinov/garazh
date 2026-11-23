@@ -14,6 +14,9 @@ the full picture.
   parts lines, discount, VAT, payment, status steps, print / save as PDF
 - Closing a work order writes its parts (with mileage) to `части.md` and its
   mileage to `пробег.md`, once
+- Past events per car (repairs elsewhere, accidents, anything worth knowing)
+  in `събития.md`: shown in the car's history, their mileage counts as a
+  reading and their text counts for the maintenance schedule
 - Mileage and usage per car: km per day, month and year, trend, chart
 - Documents: drag files onto the window or pick them; originals are copied into
   the car's `документи\` folder or the repair folder

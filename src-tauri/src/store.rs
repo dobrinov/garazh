@@ -311,7 +311,9 @@ impl Store {
                     car.id = format!("k-{}", &hash(&path_str(&kdir))[..10]);
                 }
                 car.clientId = client.data.id.clone();
-                let readings = read_readings(&kdir);
+                let mut readings = read_readings(&kdir);
+                readings.extend(crate::events::readings(&crate::events::read(&kdir)));
+                readings.sort_by(|a, b| a.date.cmp(&b.date).then(a.km.cmp(&b.km)));
                 for odir in subdirs(&kdir.join(ORDERS_DIR)) {
                     let ofile = odir.join(ORDER_FILE);
                     if !ofile.exists() {
@@ -954,6 +956,7 @@ Notepad и Excel и да копирате документи директно в
     документи\\     талон, ГТП и други документи\r\n\
     оферти-и-доклади\\  оферти, доклади за ремонт и диагностика\r\n\
     график-поддръжка.md  обслужвания, отбелязани ръчно\r\n\
+    събития.md     минали събития: ремонти другаде, катастрофи и др.\r\n\
     обаждания.md   обаждания до клиента за срокове и обслужване\r\n\
 справочници\\графици\\   графици за поддръжка по двигател и кутия (редактируеми)\r\n\
 справочници\\марки\\     полезни връзки по марка (редактируеми)\r\n\

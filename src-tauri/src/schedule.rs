@@ -9,6 +9,7 @@
 //! actual usage.
 
 use crate::md::{parse_record, parse_table, read_text, render_table, write_atomic};
+use crate::events::CarEvent;
 use crate::model::{Car, PartRow, WorkOrder};
 use crate::usage::{self, Usage};
 use chrono::{Months, NaiveDate};
@@ -269,7 +270,7 @@ fn fmt(d: NaiveDate) -> String {
 }
 
 /// The latest time an interval was done, from all evidence.
-fn last_done(iv: &Interval, parts: &[PartRow], orders: &[&WorkOrder], manual: &[ManualDone]) -> Option<Done> {
+fn last_done(iv: &Interval, parts: &[PartRow], orders: &[&WorkOrder], manual: &[ManualDone], events: &[CarEvent]) -> Option<Done> {
     let mut found: Vec<Done> = Vec::new();
     for m in manual.iter().filter(|m| norm(&m.operation) == norm(&iv.operation)) {
         found.push(Done { date: m.date.clone(), km: m.km, what: if m.note.is_empty() { "отбелязано ръчно".into() } else { m.note.clone() } });
@@ -283,6 +284,10 @@ fn last_done(iv: &Interval, parts: &[PartRow], orders: &[&WorkOrder], manual: &[
             for l in o.labor.iter().filter(|l| matches(&iv.search, &l.description)) {
                 found.push(Done { date: o.date.clone(), km: o.mileage, what: format!("{} ({})", l.description, o.number) });
             }
+        }
+        for e in events.iter().filter(|e| matches(&iv.search, &format!("{} {}", e.what, e.note))) {
+            let what = if e.place.is_empty() { e.what.clone() } else { format!("{} ({})", e.what, e.place) };
+            found.push(Done { date: e.date.clone(), km: e.km, what });
         }
     }
     found.into_iter().filter(|d| date(&d.date).is_some()).max_by(|a, b| a.date.cmp(&b.date).then(a.km.cmp(&b.km)))
@@ -344,6 +349,7 @@ pub struct CarHistory<'a> {
     pub parts: &'a [PartRow],
     pub orders: Vec<&'a WorkOrder>,
     pub manual: &'a [ManualDone],
+    pub events: &'a [CarEvent],
     pub usage: &'a Usage,
 }
 
@@ -352,7 +358,7 @@ pub fn for_car(all: &[Schedule], h: &CarHistory, today: &str) -> CarSchedule {
     let mut items = Vec::new();
     for s in &chosen {
         for iv in &s.intervals {
-            let last = last_done(iv, h.parts, &h.orders, h.manual);
+            let last = last_done(iv, h.parts, &h.orders, h.manual, h.events);
             items.push(due(s, iv, last, h.usage, today));
         }
     }
@@ -467,7 +473,7 @@ mod tests {
         };
         let car = golf();
         let u = usage_golf();
-        let h = CarHistory { car: &car, pinned: &[], parts: &parts, orders: vec![&wo], manual: &[], usage: &u };
+        let h = CarHistory { car: &car, pinned: &[], parts: &parts, orders: vec![&wo], manual: &[], events: &[], usage: &u };
         let cs = for_car(&[s], &h, "2026-11-15");
         let oil = cs.items.iter().find(|i| i.operation.starts_with("Масло")).unwrap();
         assert_eq!(oil.last.as_ref().unwrap().date, "2026-03-14");
@@ -486,6 +492,19 @@ mod tests {
     }
 
     #[test]
+    fn past_events_count_as_done() {
+        let s = parse_schedule("e.md", "", SAMPLE).unwrap();
+        let car = golf();
+        let u = usage_golf();
+        let events = vec![CarEvent { date: "2024-06-01".into(), km: Some(160_000), what: "Смяна на ангренаж".into(), place: "друг сервиз".into(), ..Default::default() }];
+        let h = CarHistory { car: &car, pinned: &[], parts: &[], orders: vec![], manual: &[], events: &events, usage: &u };
+        let cs = for_car(&[s], &h, "2026-11-15");
+        let belt = cs.items.iter().find(|i| i.operation.starts_with("Ангренаж")).unwrap();
+        assert_eq!(belt.dueKm, Some(370_000));
+        assert_eq!(belt.last.as_ref().unwrap().what, "Смяна на ангренаж (друг сервиз)");
+    }
+
+    #[test]
     fn manual_rows_count_and_round_trip() {
         let dir = tempfile::tempdir().unwrap();
         add_manual(dir.path(), ManualDone { operation: "Спирачна течност".into(), date: "2026-01-10".into(), km: None, note: "друг сервиз".into() }).unwrap();
@@ -494,7 +513,7 @@ mod tests {
         let s = parse_schedule("e.md", "", SAMPLE).unwrap();
         let car = golf();
         let u = usage_golf();
-        let h = CarHistory { car: &car, pinned: &[], parts: &[], orders: vec![], manual: &manual, usage: &u };
+        let h = CarHistory { car: &car, pinned: &[], parts: &[], orders: vec![], manual: &manual, events: &[], usage: &u };
         let cs = for_car(&[s], &h, "2026-11-15");
         let fluid = cs.items.iter().find(|i| i.operation.starts_with("Спирачна")).unwrap();
         assert_eq!(fluid.nextDate.as_deref(), Some("2028-01-10"));

@@ -1,6 +1,7 @@
 import { FormEvent, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { api, CarPage as CarData, errorMessage } from "../api";
+import { api, CarEvent, CarPage as CarData, errorMessage } from "../api";
+import { EventForm } from "../components/EventForm";
 import { useFeatures } from "../components/features";
 import { Files } from "../components/Files";
 import { LinksCard } from "../components/Links";
@@ -16,7 +17,7 @@ import { formatMinutes } from "../lib/time";
 type Tab = "all" | "orders" | "parts" | "usage" | "schedule" | "quotes" | "docs";
 type CarDetail = CarData;
 
-const KIND_LABEL: Record<HistoryKind, string> = { order: "Ремонт", parts: "Части", km: "Пробег", quote: "Оферта / доклад", doc: "Документ" };
+const KIND_LABEL: Record<HistoryKind, string> = { order: "Ремонт", event: "Минало събитие", parts: "Части", km: "Пробег", quote: "Оферта / доклад", doc: "Документ" };
 const QUOTE_TONE: Record<string, string> = { чернова: "muted", изпратена: "info", приета: "ok", отказана: "bad" };
 const QUOTE_LABEL: Record<string, string> = { чернова: "Чернова", изпратена: "Чака отговор", приета: "Приета", отказана: "Отказана" };
 
@@ -25,10 +26,12 @@ export function CarPage() {
   const nav = useNavigate();
   const { data, error, reload } = useLoad(() => api.getCar(id), [id]);
   const [tab, setTab] = useState<Tab>("all");
+  /** undefined: closed; null: a new event; else the event being edited. */
+  const [eventForm, setEventForm] = useState<CarEvent | null | undefined>(undefined);
   const features = useFeatures();
   const toast = useToast();
   const history = useMemo(
-    () => (data ? buildHistory({ orders: data.orders, parts: data.parts, readings: data.readings, quotes: features.quotes ? data.quotes : [], documents: data.documents }) : []),
+    () => (data ? buildHistory({ orders: data.orders, parts: data.parts, events: data.events, readings: data.readings, quotes: features.quotes ? data.quotes : [], documents: data.documents }) : []),
     [data, features.quotes],
   );
   if (!data) return <Loading error={error} />;
@@ -76,6 +79,7 @@ export function CarPage() {
           <Menu
             items={[
               { label: "Редактирай колата", onSelect: () => nav(`/cars/${id}/edit`) },
+              { label: "Добави минало събитие", onSelect: () => setEventForm(null) },
               { label: "Отвори папката", onSelect: () => api.openPath(data.car.dir) },
               features.quotes && { label: "Доклад от диагностика", onSelect: () => nav(`/quotes/new?car=${id}&kind=диагностика`) },
             ]}
@@ -137,14 +141,17 @@ export function CarPage() {
 
       <div className="cols">
         <div className="wide stack-14">
-          <div className="pill-tabs" role="tablist" aria-label="Раздели">
-            {tabs.map(([t, label, n]) => (
-              <button key={t} role="tab" aria-selected={tab === t} className={tab === t ? "on" : ""} onClick={() => setTab(t)}>
-                {label}{n ? ` ${n}` : ""}
-              </button>
-            ))}
+          <div className="row" style={{ justifyContent: "space-between", alignItems: "flex-start" }}>
+            <div className="pill-tabs" role="tablist" aria-label="Раздели">
+              {tabs.map(([t, label, n]) => (
+                <button key={t} role="tab" aria-selected={tab === t} className={tab === t ? "on" : ""} onClick={() => setTab(t)}>
+                  {label}{n ? ` ${n}` : ""}
+                </button>
+              ))}
+            </div>
+            {tab === "all" && <button type="button" className="btn small" onClick={() => setEventForm(null)}><Icon name="plus" size={14} />Минало събитие</button>}
           </div>
-          {tab === "all" && <Timeline entries={history} carId={id} />}
+          {tab === "all" && <Timeline entries={history} carId={id} onAddEvent={() => setEventForm(null)} onEditEvent={setEventForm} />}
           {tab === "orders" && <OrdersTab data={data} />}
           {tab === "parts" && <PartsTab data={data} onChange={reload} />}
           {tab === "schedule" && data.schedule && <ScheduleTab data={data} schedule={data.schedule} onChange={reload} />}
@@ -172,20 +179,35 @@ export function CarPage() {
           {features.links && <LinksCard links={data.links} car={c} onCopy={copy} />}
         </aside>
       </div>
+      {eventForm !== undefined && (
+        <EventForm
+          carId={id}
+          original={eventForm}
+          onClose={() => setEventForm(undefined)}
+          onSaved={() => {
+            setEventForm(undefined);
+            reload();
+          }}
+        />
+      )}
     </div>
   );
 }
 
-function Timeline({ entries, carId }: { entries: HistoryEntry[]; carId: string }) {
+function Timeline({ entries, carId, onAddEvent, onEditEvent }: { entries: HistoryEntry[]; carId: string; onAddEvent: () => void; onEditEvent: (e: CarEvent) => void }) {
   const [all, setAll] = useState(false);
   if (entries.length === 0) {
-    return <div className="card empty">Още няма история. <Link to={`/orders/new?car=${carId}`}>Нова работна карта</Link></div>;
+    return (
+      <div className="card empty">
+        Още няма история. <Link to={`/orders/new?car=${carId}`}>Нова работна карта</Link> или <button type="button" className="link-btn" onClick={onAddEvent}>добавете минало събитие</button> – ремонт другаде, катастрофа и др.
+      </div>
+    );
   }
   const shown = all ? entries : entries.slice(0, 12);
   return (
     <section className="card timeline">
       {shown.map((e) => {
-        const title = e.kind === "order" ? <Link to={`/orders/${e.id}`}>{e.title}</Link> : e.kind === "quote" ? <Link to={`/quotes/${e.id}`}>{e.title}</Link> : e.kind === "doc" ? <button type="button" className="link-btn" onClick={() => api.openPath(e.path)}>{e.title}</button> : e.title;
+        const title = e.kind === "order" ? <Link to={`/orders/${e.id}`}>{e.title}</Link> : e.kind === "quote" ? <Link to={`/quotes/${e.id}`}>{e.title}</Link> : e.kind === "doc" ? <button type="button" className="link-btn" onClick={() => api.openPath(e.path)}>{e.title}</button> : e.event ? <button type="button" className="link-btn" onClick={() => onEditEvent(e.event!)} title="Промени или изтрий">{e.title}</button> : e.title;
         return (
           <div key={e.key} className={`tl-row tl-${e.kind}`}>
             <div className="tl-when">
@@ -200,7 +222,7 @@ function Timeline({ entries, carId }: { entries: HistoryEntry[]; carId: string }
                   <div className="tl-title">{title}</div>
                 </div>
                 <div className="row" style={{ gap: 8 }}>
-                  {e.total && <span className="mono small" style={{ fontWeight: 600 }}>{euro(e.total)}</span>}
+                  {e.total && <span className="mono small" style={{ fontWeight: 600 }}>{e.kind === "event" ? e.total : euro(e.total)}</span>}
                   {e.kind === "order" && <StatusBadge status={stageOf(e.status)} />}
                   {e.kind === "quote" && e.status && <span className={`badge ${QUOTE_TONE[e.status] ?? "muted"}`}>{QUOTE_LABEL[e.status] ?? e.status}</span>}
                 </div>
